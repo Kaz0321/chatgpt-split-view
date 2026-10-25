@@ -8,13 +8,19 @@ import re
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = (
+EXTENSION = ROOT / 'extension'
+RUNTIME_FILES = (
     'manifest.json', 'background.js', 'core.js', 'workspace.js',
     'options.html', 'options.css', 'options.js',
     'popup.html', 'popup.css', 'popup.js',
-    'README.md', 'PRIVACY.md', 'CHANGELOG.md', 'LICENSE', 'LICENSE-NOTES.md', 'SECURITY.md',
-    'docs/VERIFICATION.md', 'docs/DEVELOPMENT.md',
 )
+REPO_FILES = (
+    'README.md', 'LICENSE', 'SECURITY.md',
+    'docs/privacy.md', 'docs/changelog.md',
+    'docs/verification.md', 'docs/development.md',
+)
+FILES = {name: EXTENSION / name for name in RUNTIME_FILES}
+FILES.update({name: ROOT / name for name in REPO_FILES})
 
 
 def archive_bytes():
@@ -22,7 +28,7 @@ def archive_bytes():
     # Stored entries avoid cross-zlib-version differences. Times/modes are fixed.
     with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_STORED) as archive:
         for name in sorted(FILES):
-            path = ROOT / name
+            path = FILES[name]
             if path.is_symlink() or not path.is_file():
                 raise ValueError(f'Expected a regular source file: {name}')
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
@@ -36,7 +42,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Validate an existing package against source')
     args = parser.parse_args()
-    manifest = json.loads((ROOT / 'manifest.json').read_text())
+    manifest = json.loads((EXTENSION / 'manifest.json').read_text())
     version = manifest['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:\.\d+)?', version):
         raise ValueError('Invalid manifest version')

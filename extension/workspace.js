@@ -259,9 +259,11 @@
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
       .pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before{box-shadow:inset 4px 0 #1684ed}.pane.drop-after{box-shadow:inset -4px 0 #1684ed}
       .pane-head{height:32px;min-height:32px;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
-      .drag-grip{flex:none;width:17px;height:24px;border:0;border-radius:4px;padding:0;background:transparent;color:#71899e;cursor:grab;font-weight:700}.drag-grip:active{cursor:grabbing}.drag-grip:hover{background:#e5edf6}
-      .pane-index{flex:none;font-size:10px;color:#497198;padding:2px}.pane-title{flex:1;min-width:45px;width:50px;height:25px;padding:2px 3px;border:1px solid transparent;border-radius:4px;font-size:12px;color:#243b51}.pane-title:focus{border-color:#8dabcb}
-      .pane-action{flex:none;height:24px;min-width:24px;padding:2px 5px;border:1px solid #d7e1eb;border-radius:4px;background:#f6f9fc;color:#35536e;font-size:12px}
+      .pane-control{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:3px;height:24px;min-width:24px;padding:0 5px;border:1px solid transparent;border-radius:4px;background:transparent;color:#526579;font-size:12px;line-height:1;vertical-align:middle}
+      .pane-control:hover{border-color:#d7e1eb;background:#edf2f7;color:#243b51}.pane-control:active{background:#dfe8f1}
+      .drag-grip{width:24px;padding:0;cursor:grab;font-size:14px}.drag-grip:active{cursor:grabbing}
+      .pane-close{width:24px;padding:0;font-size:20px;font-weight:400}.pane-close:hover{border-color:#e5c5c5;background:#fff0f0;color:#a33131}
+      .pane-index{flex:none;font-size:10px;color:#497198;padding:2px}.pane-title{flex:1;min-width:45px;width:50px;height:24px;padding:2px 3px;border:1px solid transparent;border-radius:4px;font-size:12px;color:#243b51}.pane-title:focus{border-color:#8dabcb}
       .pane-status{font-size:10px;flex:none;color:#8192a3;cursor:help}.pane-status[data-state=loaded]{color:#3e8b6a}.pane-status[data-state=warning]{color:#b46825}
       .pane-main{position:relative;flex:1;min-height:0;background:#fff}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{padding:24px 15px;line-height:1.8;color:#62748a;text-align:center}
       .resize{position:absolute;right:0;top:32px;bottom:0;width:5px;cursor:ew-resize;background:transparent;z-index:1}.resize:hover{background:#4c91df88}
@@ -562,24 +564,24 @@
     root.style.width = `${getPaneWidth(p)}px`;
     root.hidden = !p.visible;
     const head = create('div', 'pane-head');
-    const grip=button('⠿','列をドラッグで移動',()=>{state.activeId=p.id;markActive();},'drag-grip');head.appendChild(grip);
+    const grip=button('⠿','列をドラッグで移動',()=>{state.activeId=p.id;markActive();},'pane-control drag-grip');head.appendChild(grip);
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
     head.appendChild(index);
     const title = create('input', 'pane-title');
-    title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '表示名を編集';
+    title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '表示名を編集'; title.setAttribute('aria-label', '列の表示名');
     title.addEventListener('change', () => { p.title = Core.normalizeTitle(title.value); title.value = p.title; safeSave(); });
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
     const foot=create('span','pane-status');setPaneStatus(foot,'会話URL未指定');head.appendChild(foot);
-    const reloadButton=button('↻ 更新','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-action');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
-    head.appendChild(button('❌', 'この列を閉じる（ポップアップから復帰可能）', () => {
+    const reloadButton=button('↻ 更新','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-control pane-reload');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
+    const closeButton=button('×', 'この列を閉じる（ポップアップから復帰可能）', () => {
       p.visible = false;
       root.hidden = true;
       const visible = state.panes.find(x => x.visible);
       state.activeId = visible?.id || null;
       markActive(); applyColumnWidths(); safeSave();
       setStatus('列を非表示にしました。iframeは保持されています。');
-    }, 'pane-action'));
+    }, 'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
     const main = create('div', 'pane-main');
     let iframe;

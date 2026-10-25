@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const C = require('../core.js');
+const C = require('../extension/core.js');
 
 test('only ChatGPT conversation URLs pass', () => {
   assert.equal(C.chatUrl('https://chatgpt.com/c/abcdef12-34'), 'https://chatgpt.com/c/abcdef12-34');
@@ -51,7 +51,7 @@ test('session restore keeps empty columns, duplicate views and visibility', () =
 
 
 test('extension keeps least-privilege manifest settings', () => {
-  const manifest = require('../manifest.json');
+  const manifest = require('../extension/manifest.json');
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ['storage']);
   assert.equal(manifest.background.service_worker, 'background.js');

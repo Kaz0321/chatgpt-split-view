@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const Core = require('../core.js');
-const Options = require('../options.js');
+const Core = require('../extension/core.js');
+const Options = require('../extension/options.js');
 const KEY = Options.PREF_KEY;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const config = settings => ({ kind: 'ChatGPTWideWorkspaceSettings', schemaVersion: Core.SCHEMA_VERSION, settings });
@@ -256,7 +256,7 @@ test('export uses saved values, strips unknown fields, cleans its download URL a
 });
 
 test('options assets use external scripts/styles, associated labels and no remote resources', () => {
-  const dir = path.join(__dirname, '..');
+  const dir = path.join(__dirname, '..', 'extension');
   const html = fs.readFileSync(path.join(dir, 'options.html'), 'utf8');
   const js = fs.readFileSync(path.join(dir, 'options.js'), 'utf8');
   const css = fs.readFileSync(path.join(dir, 'options.css'), 'utf8');
@@ -285,7 +285,7 @@ test('browser script initializes through CGWWCore without CommonJS or inline han
     document: { getElementById: id => nodes[id] },
     chrome: { runtime: {}, storage: { local: { get: async () => ({ [KEY]: { sidebarWidth: 345 } }) }, onChanged: { addListener() {} } } }
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '../options.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../extension/options.js'), 'utf8'), context);
   await settle();
   assert.equal(nodes['sidebar-width'].value, '345');
   assert.equal(nodes['settings-fields'].disabled, false);

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const ROOT = path.resolve(process.env.CGWW_SOURCE || path.join(__dirname, '..'));
+const ROOT = path.resolve(process.env.CGWW_SOURCE || path.join(__dirname, '..', 'extension'));
 const C = require(path.join(ROOT, 'core.js'));
 // Expose lexical functions without initializing any browser UI; production code
 // is otherwise unchanged. DOM behaviors below are explicit test doubles.
