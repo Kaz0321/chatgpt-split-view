@@ -24,20 +24,20 @@ Windows などで Python が `python` 名の場合は `python scripts/package.py
 - `extension/popup.*`: 頻繁に使う操作
 - `extension/options.*`: 低頻度設定と表示設定 JSON
 - `extension/background.js`: options／検証済み会話URLへのメッセージ処理
-- `tests/*.test.cjs`: Node の69回帰試験
+- `tests/*.test.cjs`: Node の72回帰試験
 - `scripts/`: 構文／manifest／テスト／配布 ZIP の検査
 
 拡張本体は `extension/` 内で完結します。manifest・HTML・service worker が参照する相対パスは、そのディレクトリがChrome拡張のルートになることを前提にしています。repo直下は開発用です。
 
 ## 配布 ZIP
 
-`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v0.5.0-candidate.zip` に入れます。`extension/` の10実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
+`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v0.5.1-candidate.zip` に入れます。`extension/` の10実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
 
 ZIP はリポジトリ全体のソース ZIP と異なり、開発用テスト／スクリプトを含みません。開発・再テストにはこのリポジトリの checkout を使ってください。
 
 ## CI
 
-GitHub Actions は push／pull_request／手動実行で、ソース検査、69件のテスト、ZIP生成と整合性確認だけを実行します。権限は contents:read、外部 action は固定 commit、checkout の資格情報は残しません。リリース公開、拡張インストール、実ChatGPT操作、サイト配備を自動実行しません。
+GitHub Actions は push／pull_request／手動実行で、ソース検査、72件のテスト、ZIP生成と整合性確認だけを実行します。権限は contents:read、外部 action は固定 commit、checkout の資格情報は残しません。リリース公開、拡張インストール、実ChatGPT操作、サイト配備を自動実行しません。
 
 参照 action は [checkout v4.2.2](https://github.com/actions/checkout/releases/tag/v4.2.2) と [setup-node v4.4.0](https://github.com/actions/setup-node/releases/tag/v4.4.0) です。公開時の remote CI 成功は別途確認してください。
 
@@ -49,7 +49,7 @@ GitHub Actions は push／pull_request／手動実行で、ソース検査、69�
 2. 親を固定したまま大／小のwindow幅を往復し、親／子sidebarを分離。
 3. 会話を10列開き、先頭／末尾への横スクロール、幅320／768／等分。
 4. 逆方向・離れた列の並べ替えと Alt＋左右、下書き・スクロール保持。
-5. 各列の❌／復帰、更新取消、確認後の対象1列だけ更新。
+5. 各列の×／復帰、更新取消、確認後の対象1列だけ更新。
 6. 先頭／中間／末尾、並べ替え後へのダミーファイルDnD。対象外に入らないこと。
 7. ChatGPTの遷移・再描画・認証変更を含む中断／再開。
 
@@ -68,3 +68,5 @@ GitHub Actions は push／pull_request／手動実行で、ソース検査、69�
 元資材には LICENSE が含まれておらず、公開時にプロジェクト所有者の明示的な選択に基づいて MIT License を追加しました。第三者由来部分の有無を網羅的に検証したという表明ではありません。第三者の権利に関する問題が判明した場合は、該当部分と出典を確認して扱ってください。
 
 実行時の外部 npm 依存はありません。CI が参照する GitHub Actions は各提供元の独立したソフトウェアであり、本リポジトリにそのコードを取り込んでいません。
+
+その後のv0.5.1では列ヘッダーのスタイル・アクセシブル名とパッチ番号だけを変更しました。更新・並べ替え・保存ロジックと権限はそのままです。

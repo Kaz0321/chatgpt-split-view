@@ -3,7 +3,7 @@
   "name": "ChatGPT Split View (試作)",
   "short_name": "Split View",
   "description": "ChatGPTの左サイドバーを残して、複数の会話を横一列に表示するローカルUI試作版です。",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "minimum_chrome_version": "114",
   "permissions": [
     "storage"
