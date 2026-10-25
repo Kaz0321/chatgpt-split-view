@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>設定 — ChatGPT 横並びワークスペース</title>
+  <link rel="stylesheet" href="options.css">
+  <script src="core.js" defer></script>
+  <script src="options.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">CHATGPT WIDE WORKSPACE <span class="badge">候補版</span></p>
+      <h1>ワークスペースの設定</h1>
+      <p class="intro">普段は触らない設定を、ここにまとめました。列幅・等分・列の追加は、チャット画面のコンパクトなツールバーで操作できます。</p>
+    </header>
+
+    <form id="settings-form">
+      <fieldset id="settings-fields" disabled>
+        <legend>左側の履歴と表示</legend>
+        <div class="field width-field">
+          <label for="sidebar-width">左側に残す表示幅</label>
+          <div class="number-field"><input id="sidebar-width" name="sidebarWidth" type="number" min="180" max="520" step="1" required inputmode="numeric" aria-describedby="sidebar-width-help"><span aria-hidden="true">px</span></div>
+          <p id="sidebar-width-help" class="help">180〜520 px。拡張が覆わずに残す領域です。ChatGPT本来の履歴の幅は変わりません。</p>
+        </div>
+        <div class="field check-field">
+          <input id="keep-master-sidebar" name="keepMasterSidebar" type="checkbox" aria-describedby="keep-master-sidebar-help">
+          <div><label for="keep-master-sidebar">親画面の履歴を開いた状態に保つ</label><p id="keep-master-sidebar-help" class="help">公式の履歴を開く操作を試みます。開けない場合の代替一覧は、このタブで登録した会話のみです。</p></div>
+        </div>
+        <div class="field check-field">
+          <input id="intercept-sidebar" name="interceptSidebar" type="checkbox" aria-describedby="intercept-sidebar-help">
+          <div><label for="intercept-sidebar">履歴クリックを選択中の列で開く</label><p id="intercept-sidebar-help" class="help">横並び表示中の対応する会話リンクが対象です。Shift＋クリックでは新しい列に開きます。</p></div>
+        </div>
+        <div class="field check-field">
+          <input id="hide-frame-sidebar" name="hideFrameSidebar" type="checkbox" aria-describedby="hide-frame-sidebar-help">
+          <div><label for="hide-frame-sidebar">埋め込み内のナビを隠す <span class="badge">実験的</span></label><p id="hide-frame-sidebar-help" class="help">iframe内のサイドバー表示を調整します。ChatGPTの画面構成によっては動作しません。埋め込み制限・認証・セキュリティヘッダーは変更しません。</p></div>
+        </div>
+      </fieldset>
+      <div class="actions">
+        <button id="save-settings" type="submit" class="primary" disabled>変更を保存</button>
+        <button id="discard-settings" type="button" disabled>変更を取り消す</button>
+      </div>
+    </form>
+
+    <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true">設定を読み込んでいます…</p>
+    <button id="retry-load" type="button" hidden>読み込みを再試行</button>
+
+    <section class="transfer" aria-labelledby="transfer-heading">
+      <h2 id="transfer-heading">設定だけを持ち運ぶ</h2>
+      <p class="help">保存済みの設定をJSONで書き出します。列幅・等分の設定も含みますが、会話のURL・タイトル・本文は含めません。</p>
+      <div class="actions">
+        <button id="export-settings" type="button" disabled>設定を書き出す</button>
+        <button id="import-settings" type="button" disabled>設定を読み込む</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden aria-label="読み込む設定JSON">
+      </div>
+      <p class="help">読み込みは64 KiBまで。ファイルに記載された設定のみを適用します。列幅・等分の記載があれば、それらも更新します。旧形式に会話情報があっても、会話や列は復元しません。</p>
+    </section>
+    <footer>設定はこの拡張のローカル保存領域に保存されます。外部送信はありません。候補版のため、実際のChatGPTでの動作確認が必要です。</footer>
+  </main>
+</body>
+</html>

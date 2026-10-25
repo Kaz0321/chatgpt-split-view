@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const Popup = require('../popup.js');
+const Popup = require('../extension/popup.js');
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const validState = extra => ({ ok: true, enabled: true, equalizeColumns: false, paneWidth: 620, maxWidth: 920,
   visibleCount: 2, totalCount: 3, hiddenPanes: [{ id: 'hidden-1', title: '隠した列' }], ...extra });
@@ -218,16 +218,16 @@ test('options rejection is visible and does not corrupt workspace state', async 
 test('browser branch initializes with normal promise APIs and no CommonJS', async () => {
   const h = harness(); await settle();
   const context = vm.createContext({ document: h.document, chrome: h.chrome });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '../popup.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../extension/popup.js'), 'utf8'), context);
   await settle();
   assert.equal(h.data.calls.at(-1).message.action, 'status');
   assert.equal(h.nodes['pane-count'].textContent, '表示 2 / 全 3 列');
 });
 
 test('static popup is CSP-compatible, accessible, and uses native forms rather than inline handlers', () => {
-  const html = fs.readFileSync(path.join(__dirname, '../popup.html'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '../popup.css'), 'utf8');
-  const js = fs.readFileSync(path.join(__dirname, '../popup.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '../extension/popup.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '../extension/popup.css'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '../extension/popup.js'), 'utf8');
   assert.match(html, /<html lang="ja">/);
   assert.match(html, /src="popup.js" defer/);
   assert.match(html, /href="popup.css"/);
