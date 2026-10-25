@@ -1,0 +1,13 @@
+dist/
+node_modules/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+.env
+.env.*
+.openai/
+browser-evidence/
+screenshots/
+*.zip
+*.tar.gz

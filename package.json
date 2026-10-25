@@ -1,0 +1,21 @@
+{
+  "name": "chatgpt-split-view",
+  "version": "0.5.0",
+  "private": true,
+  "description": "ChatGPT conversations in resizable side-by-side columns; experimental Chrome extension",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/test.mjs",
+    "verify": "npm run check && npm test",
+    "package": "python3 scripts/package.py",
+    "package:check": "python3 scripts/package.py --check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kaz0321/chatgpt-split-view.git"
+  }
+}
