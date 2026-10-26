@@ -52,6 +52,17 @@
     return ORIGIN + pathname;
   }
 
+  // A new draft is a distinct pane, not a conversation URL for history deduplication.
+  function newChatUrl(input) {
+    if (typeof input !== 'string' || input.length > 2048) return null;
+    let url;
+    try { url = new URL(input, ORIGIN); } catch { return null; }
+    if (url.origin !== ORIGIN || url.username || url.password || url.pathname !== '/' || url.hash) return null;
+    // Keep mode/project/GPT links native rather than silently changing their meaning.
+    for (const key of url.searchParams.keys()) if (key !== 'noauth_recent_chat_failed') return null;
+    return ORIGIN + '/';
+  }
+
   function normalizeTitle(value, fallback = 'ChatGPT チャット') {
     const t = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 100) : '';
     return t || fallback;
@@ -82,9 +93,10 @@
     if (!Array.isArray(panes)) return result;
     for (const p of panes.slice(0, max)) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) continue;
-      const url = p.url == null ? null : chatUrl(p.url);
+      const fresh = p.newChat === true && newChatUrl(p.url);
+      const url = p.url == null ? null : (fresh || chatUrl(p.url));
       if (p.url != null && !url) continue;
-      result.push({ url, title: normalizeTitle(p.title, url ? 'ChatGPT チャット' : '未設定の列'),
+      result.push({ url, ...(fresh ? {newChat:true} : {}), title: normalizeTitle(p.title, fresh ? '新しいチャット' : (url ? 'ChatGPT チャット' : '未設定の列')),
         width: boundedNumber(p.width, DEFAULTS.paneWidth, 320, 1400), visible: p.visible !== false });
     }
     return result;
@@ -113,7 +125,7 @@
     result.splice(index+(after?1:0),0,source);return result;
   }
 
-  const api = { PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
+  const api = { PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CGWWCore = api;
 })(globalThis);
