@@ -93,7 +93,7 @@ test('disable and enable update all controls from the returned state', async () 
   assert.equal(h.nodes['workspace-controls'].disabled, false);
 });
 
-test('new empty columns issue add and refresh the count', async () => {
+test('new-chat columns issue add and refresh the count', async () => {
   const h = harness(); await settle();
   await h.nodes['add-pane'].emit('click');
   assert.deepEqual(h.data.calls.at(-1).message, { type: 'CGWW_ACTION', action: 'add' });

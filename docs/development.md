@@ -24,20 +24,20 @@ Windows などで Python が `python` 名の場合は `python scripts/package.py
 - `extension/popup.*`: 頻繁に使う操作
 - `extension/options.*`: 低頻度設定と表示設定 JSON
 - `extension/background.js`: options／検証済み会話URLへのメッセージ処理
-- `tests/*.test.cjs`: Node の72回帰試験
+- `tests/*.test.cjs`: Node の89回帰試験
 - `scripts/`: 構文／manifest／テスト／配布 ZIP の検査
 
 拡張本体は `extension/` 内で完結します。manifest・HTML・service worker が参照する相対パスは、そのディレクトリがChrome拡張のルートになることを前提にしています。repo直下は開発用です。
 
 ## 配布 ZIP
 
-`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v0.5.1-candidate.zip` に入れます。`extension/` の10実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
+`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v0.6.0-candidate.zip` に入れます。`extension/` の10実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
 
 ZIP はリポジトリ全体のソース ZIP と異なり、開発用テスト／スクリプトを含みません。開発・再テストにはこのリポジトリの checkout を使ってください。
 
 ## CI
 
-GitHub Actions は push／pull_request／手動実行で、ソース検査、72件のテスト、ZIP生成と整合性確認だけを実行します。権限は contents:read、外部 action は固定 commit、checkout の資格情報は残しません。リリース公開、拡張インストール、実ChatGPT操作、サイト配備を自動実行しません。
+GitHub Actions は push／pull_request／手動実行で、ソース検査、89件のテスト、ZIP生成と整合性確認だけを実行します。権限は contents:read、外部 action は固定 commit、checkout の資格情報は残しません。リリース公開、拡張インストール、実ChatGPT操作、サイト配備を自動実行しません。
 
 参照 action は [checkout v4.2.2](https://github.com/actions/checkout/releases/tag/v4.2.2) と [setup-node v4.4.0](https://github.com/actions/setup-node/releases/tag/v4.4.0) です。公開時の remote CI 成功は別途確認してください。
 
@@ -70,3 +70,12 @@ GitHub Actions は push／pull_request／手動実行で、ソース検査、72�
 実行時の外部 npm 依存はありません。CI が参照する GitHub Actions は各提供元の独立したソフトウェアであり、本リポジトリにそのコードを取り込んでいません。
 
 その後のv0.5.1では列ヘッダーのスタイル・アクセシブル名とパッチ番号だけを変更しました。更新・並べ替え・保存ロジックと権限はそのままです。
+
+
+## v0.6の操作入口
+
+ページ内オーバーレイはworkspace.js内の閉じた関数を直接呼び出し、Webページ向けpostMessage APIや追加の権限は導入しません。拡張popupの送信元認可は従来どおりです。
+
+新規会話ルートは`Core.newChatUrl`で通常会話の`chatUrl`と区別します。`normalizeSessionPanes`は`newChat:true`付きのルートを重複排除せず残し、従来の未設定列・保存済み列とも互換です。選択復旧はactiveIndexを優先し旧activeUrlへフォールバック。新規列の保存済みURL検出はiframeのload／既存DOM observer経由で行い、iframe.srcを書き換えません。ルートだけが変わりDOMイベントが発生しないケースは検出保証外です。
+
+再現確認には、ブラウザーの拡張ボタンを使わず、ページ内メニューの開始／Esc／外側クリック、位置移動／狭幅、元画面の native new chat 通過、分割中の親リンク／子ボタンで新規を連続追加、模擬保存済み経路への移行と下書き保持を含めます。
