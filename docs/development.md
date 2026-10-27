@@ -20,24 +20,25 @@ Windows などで Python が `python` 名の場合は `python scripts/package.py
 
 - `extension/manifest.json`: MV3 の権限・対象サイト・popup／options
 - `extension/core.js`: URL・設定・順序の純粋関数
+- `extension/content-layout.js`: 本文ラッパーの寸法検出と限定的な余白調整
 - `extension/workspace.js`: ページ側 UI、sidebar、iframe、popup メッセージ
 - `extension/popup.*`: 頻繁に使う操作
 - `extension/options.*`: 低頻度設定と表示設定 JSON
 - `extension/background.js`: options／検証済み会話URLへのメッセージ処理
-- `tests/*.test.cjs`: Node の89回帰試験
+- `tests/*.test.cjs`: Node の126回帰試験
 - `scripts/`: 構文／manifest／テスト／配布 ZIP の検査
 
 拡張本体は `extension/` 内で完結します。manifest・HTML・service worker が参照する相対パスは、そのディレクトリがChrome拡張のルートになることを前提にしています。repo直下は開発用です。
 
 ## 配布 ZIP
 
-`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v0.6.0-candidate.zip` に入れます。`extension/` の10実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
+`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v0.7.1-candidate.zip` に入れます。`extension/` の11実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
 
 ZIP はリポジトリ全体のソース ZIP と異なり、開発用テスト／スクリプトを含みません。開発・再テストにはこのリポジトリの checkout を使ってください。
 
 ## CI
 
-GitHub Actions は push／pull_request／手動実行で、ソース検査、89件のテスト、ZIP生成と整合性確認だけを実行します。権限は contents:read、外部 action は固定 commit、checkout の資格情報は残しません。リリース公開、拡張インストール、実ChatGPT操作、サイト配備を自動実行しません。
+GitHub Actions は push／pull_request／手動実行で、ソース検査、126件のテスト、ZIP生成と整合性確認だけを実行します。権限は contents:read、外部 action は固定 commit、checkout の資格情報は残しません。リリース公開、拡張インストール、実ChatGPT操作、サイト配備を自動実行しません。
 
 参照 action は [checkout v4.2.2](https://github.com/actions/checkout/releases/tag/v4.2.2) と [setup-node v4.4.0](https://github.com/actions/setup-node/releases/tag/v4.4.0) です。公開時の remote CI 成功は別途確認してください。
 
@@ -81,7 +82,7 @@ ChatGPT Wide Workspace v0.3.0 の拡張ソースを基に開発し、ChatGPT Spl
 ## 表示・ナビゲーションの仕様
 
 - manifestの最低Chromeバージョンは114。全対応版での互換性を保証する指定ではありません。一般的な読み込み手順は[Chrome公式資料](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)を参照してください。
-- 列の最小幅は320px。最大幅は親画面から検出し、検出できない場合は暫定値920pxを使います。等分でも最小幅を守り、多列は横スクロールします。
+- 列の最小幅は320px。外枠の上限は本文ラッパー・祖先の余白・枠線・スクロールバーから算出します。検出できない会話がある場合は手動上限1400pxとし、元の本文上限を検出したとは表示しません。等分でも最小幅を守り、多列は横スクロールします。
 - 元画面への切替は列のiframeを非表示にし、親固定と履歴／新規操作の介入を停止します。分割へ戻ると既存文書を再利用します。×も非表示操作で、メモリを即時解放しません。
 - オーバーレイは常設の上段領域を使わず、位置をタブ内で保持します。履歴や他の操作と重なる場合は移動が必要です。ドラッグに加えて、つまみへフォーカスして矢印キーでも移動できます。
 - 新規操作は標準の`https://chatgpt.com/`と認識可能なボタンが対象。修飾キー付きクリック、ダウンロード、外部リンク、一時チャット等のモード付きURL、Project/GPT固有の新規操作は元動作を残します。旧版の未設定列がある場合、履歴の会話はそこを使用します。
@@ -92,3 +93,22 @@ ChatGPT Wide Workspace v0.3.0 の拡張ソースを基に開発し、ChatGPT Spl
 リポジトリ直下を読み込んでいた版から移行する場合、現在の読み込み先は`extension/`です。別フォルダーから読み込むと拡張IDが変わる場合があります。オプション画面のJSON入出力で移せるのは表示設定だけで、会話URL・タイトル・下書きは移しません。
 
 不具合時はページ内の「元画面」へ切り替えるか拡張を無効化してください。旧版へ戻す前にも未送信内容を控えてください。
+
+## v0.7 のレスポンシブ本文幅
+
+列幅と本文幅は別の値です。旧版は本文の最大幅を列の外枠上限へ直接適用していたため、iframe・padding・scrollbar分だけ本文が狭くなり得ました。
+
+`content-layout.js` は既知の message role／conversation-turn 要素の祖先から、400〜1400pxの計算済みmax-widthを持つラッパーを探します。body、navigation、入力、コード、表を調整対象にしません。未検出のDOMはそのまま残します。
+
+- border-boxの場合: 本文領域上限 = 元max-width − 左右padding − 左右border。content-boxの場合は元max-widthが本文領域上限です。
+- 調整後の左右paddingは、それぞれ元の値と12pxの小さい方。ラッパーのmax-widthも減らしたpaddingと同じ分だけ減らし、本文領域上限を変えません。会話内のbubble自身のpaddingは変更しません。
+- 外枠上限 = 調整後ラッパーmax-width ＋ 祖先padding/border ＋ 観測したdocument／祖先scrollbar ＋ 列border。対応範囲は320〜1400pxです。
+- `width:100%; min-width:0`により、狭い列は通常どおり折り返します。固定原寸モードは導入していません。pre／tableの改行・overflowや入力欄のCSSは書き換えません。
+
+例: 元ラッパー768px（border-box、左右20px）、bubble左右14pxなら本文700px。調整後はラッパー752px、左右12pxで本文700pxのままです。列border2px、scrollbar15pxなら必要外枠は769px（祖先余白なし）。これはボックスモデルの計算例であり、実ChatGPTの幅を保証する数値ではありません。
+
+manual／equalの保存形式と既定値620pxは維持します。manualは指定外枠幅を使い、equalは空き幅に追従します。狭い指定幅や多列の等分で本文が折り返すのは意図した動作です。新規会話など未検出の列がある間は上限1400px、本文が現れたら再測定します。
+
+load・resize・既存DOM observerを100ms単位にまとめて再測定します。同じdocument内のscrollbar余裕は減らさず、幅とscrollbarの往復を防ぎます。文書の置換時に余裕を初期化。iframeの再生成・src変更・pollingは行いません。寸法検出は本文文字列や入力・添付内容を読み取りません。
+
+受入では、同じ架空文章を元ページと列で比較し、広幅で本文幅が一致し、狭幅では行数が増えることを確認します。border-box／content-box、祖先余白、縦scrollbarの有無、長いコード／表、10列の幅変更・等分・並べ替え・下書き保持を含めてください。現行ChatGPTのDOM選択・内部scroll container・responsive breakpointへの適合は、実ページで別途検証が必要です。

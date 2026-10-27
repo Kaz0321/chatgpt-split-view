@@ -21,6 +21,7 @@
     }));
     return { enabled: response.enabled, equalizeColumns: response.equalizeColumns,
       paneWidth: Math.max(320, Math.min(maxWidth, Math.round(response.paneWidth))), maxWidth,
+      contentWidthDetected: response.contentWidthDetected === true,
       visibleCount: response.visibleCount, totalCount: response.totalCount, hiddenPanes };
   }
 
@@ -73,7 +74,7 @@
         equal.checked = state.equalizeColumns;
         width.max = String(state.maxWidth);
         width.value = String(state.paneWidth);
-        node('width-help').textContent = `320〜${state.maxWidth} px。等分中は手動変更できません。`;
+        node('width-help').textContent = `列の外枠320〜${state.maxWidth} px。${state.contentWidthDetected?'広い列は元の本文上限、狭い列は折返し。':'本文上限は未検出です。'}等分中は手動変更できません。`;
         const selected = hidden.value;
         hidden.replaceChildren();
         if (!state.hiddenPanes.length) {
