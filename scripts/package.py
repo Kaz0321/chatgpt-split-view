@@ -10,7 +10,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / 'extension'
 RUNTIME_FILES = (
-    'manifest.json', 'background.js', 'core.js', 'workspace.js',
+    'manifest.json', 'background.js', 'core.js', 'content-layout.js', 'workspace.js',
     'options.html', 'options.css', 'options.js',
     'popup.html', 'popup.css', 'popup.js',
 )

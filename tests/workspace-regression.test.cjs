@@ -16,7 +16,7 @@ function harness(extra={}) {
   const source=fs.readFileSync(path.join(ROOT,'workspace.js'),'utf8');
   assert(source.includes('  void initialize();'));
   vm.runInContext(source.replace('  void initialize();', `globalThis.testHooks = {
-    historyAnchor, attachEmbeddedNavigation, readOriginalMaxWidth, setEqualize, applyColumnWidths, syncPaneOrder, reorderPane, attachPaneDrag,
+    historyAnchor, attachEmbeddedNavigation, readOriginalMaxWidth, refreshContentLayout, scheduleContentLayout, actionState, setEqualize, applyColumnWidths, syncPaneOrder, reorderPane, attachPaneDrag,
     getOrder(){return state.panes.map(p=>p.id);},
     measureNativeSidebar, tagEmbeddedNavigation, applyIframeSidebarRule,
     setSettings(value) { settings = Core.normalizeSettings(value); },
@@ -67,18 +67,14 @@ test('embedded _blank chat link is intercepted rather than opening a browser tab
   assert.equal(assignments.length,1);
 });
 
-test('column cap equals the supplied original content max width (no arbitrary 48px inflation)',()=>{
-  const root={appendChild(){}};
-  const doc={getElementById(){return null;},documentElement:root,body:{},querySelector(){return null;},
-    createElement(){return {style:{},getBoundingClientRect(){return {width:768};},remove(){}};}};
-  const {hooks}=harness({document:doc,getComputedStyle(){return {getPropertyValue(){return '768px';}};}});
-  assert.equal(hooks.readOriginalMaxWidth(),768);
+test('column cap uses measured outer geometry, not the content maximum directly',()=>{
+  const {hooks}=harness({CGWWLayout:{inspect(){return {detected:true,outerMax:769};}}});
+  assert.equal(hooks.readOriginalMaxWidth(),769);
 });
 
-test('unavailable native width falls back explicitly to 920px',()=>{
-  const doc={getElementById(){return null;},documentElement:{},body:{},querySelector(){return null;}};
-  const {hooks}=harness({document:doc,getComputedStyle(){return {getPropertyValue(){return '';}};}});
-  assert.equal(hooks.readOriginalMaxWidth(),920);
+test('unknown content uses a manual outer-width limit, not a claimed native max',()=>{
+  const {hooks}=harness({CGWWLayout:{inspect(){return {detected:false,outerMax:1400};}}});
+  assert.equal(hooks.readOriginalMaxWidth(),1400);
 });
 
 test('manual 320px width survives preferences and session normalization',()=>{
@@ -213,3 +209,28 @@ test('iframe viewport resize rechecks navigation with parent pinning disabled',(
 });
 
 test('offscreen iframe stylesheet load does not depend on animation-frame delivery',()=>{const h=lateLayoutHarness(true);h.makeVisible();h.listeners['doc:load']({target:{tagName:'LINK',rel:'stylesheet'}});assert.equal(h.attrs['data-cgww-embedded-nav'],'true');});
+
+test('responsive measurement updates ten columns without reloading or replacing their documents',()=>{
+  let inspections=0;const applied=[];
+  const {hooks,sandbox}=harness({CGWWLayout:{inspect(doc,options){inspections++;return {detected:true,outerMax:doc.outer||754,scrollbarAllowance:Math.max(options.scrollbarAllowance||0,doc.scrollbar||0),columns:[]};},apply(doc){applied.push(doc);}}});
+  const panes=Array.from({length:10},(_,i)=>({id:String(i),width:1000,visible:true}));
+  const entries=new Map(panes.map((p,i)=>[p.id,{root:{style:{}},iframe:{src:'https://chatgpt.com/c/fixture-'+i,draft:'dummy-'+i,contentDocument:{outer:i===9?769:754,scrollbar:i===9?15:0},contentWindow:{location:{origin:C.ORIGIN}}}}]));
+  const original=[...entries.values()].map(e=>[e.iframe,e.iframe.contentDocument]);
+  hooks.setLayout(panes,entries,10000,1400);hooks.refreshContentLayout();
+  assert.equal(inspections,11);assert.equal(applied.length,10);assert.equal(hooks.actionState().maxWidth,769);
+  for(let i=0;i<6;i++){hooks.setEqualize(i%2===0);hooks.resize(i%2?650:10000);hooks.refreshContentLayout();}
+  [...entries.values()].forEach((e,i)=>{assert.equal(e.iframe,original[i][0]);assert.equal(e.iframe.contentDocument,original[i][1]);assert.equal(e.iframe.draft,'dummy-'+i);assert.equal(e.iframe.src,'https://chatgpt.com/c/fixture-'+i);assert.equal(panes[i].width,1000);});
+  assert.equal(entries.get('9').iframe._cgwwScrollbarAllowance,15);
+});
+test('unknown conversation keeps outer limit explicit and same frame can become detected later',()=>{
+  const doc={detected:false};const {hooks}=harness({CGWWLayout:{inspect(d){return {detected:d===doc&&d.detected,outerMax:754,columns:[],scrollbarAllowance:0};},apply(){}}});
+  const iframe={contentDocument:doc,contentWindow:{location:{origin:C.ORIGIN}},src:'https://chatgpt.com/'};
+  hooks.setLayout([{id:'a',width:900,visible:true}],new Map([['a',{root:{style:{}},iframe}]]),1000,1400);
+  hooks.refreshContentLayout();assert.equal(hooks.actionState().contentWidthDetected,false);assert.equal(hooks.actionState().maxWidth,1400);
+  doc.detected=true;hooks.refreshContentLayout();assert.equal(hooks.actionState().contentWidthDetected,true);assert.equal(hooks.actionState().maxWidth,754);assert.equal(iframe.src,'https://chatgpt.com/');
+});
+test('content measurement coalesces repeated events into one timer',()=>{
+  const queued=[];const {hooks}=harness({CGWWLayout:{inspect(){return {detected:false,outerMax:1400,columns:[],scrollbarAllowance:0};},apply(){}},setTimeout(fn,ms){queued.push({fn,ms});return queued.length;}});
+  for(let i=0;i<100;i++)hooks.scheduleContentLayout();assert.equal(queued.length,1);assert.equal(queued[0].ms,100);
+  queued[0].fn();hooks.scheduleContentLayout();assert.equal(queued.length,2);
+});

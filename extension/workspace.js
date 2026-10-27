@@ -7,6 +7,7 @@
   'use strict';
   if (window !== window.top || !window.CGWWCore || document.getElementById('cgww-host')) return;
   const Core = window.CGWWCore;
+  const Layout = window.CGWWLayout;
   const SESSION_KEY = 'cgww.v1.workspace';
   const PREF_KEY = 'cgww.v1.preferences';
   let settings = Core.normalizeSettings();
@@ -18,7 +19,11 @@
   let fallbackDock, fallbackList, equalButton, maxWidthNote, nativeSidebarCheck;
   let geometryObserver = null;
   let masterObserver=null,masterFrame=null,masterStyle=null,pinnedMaster=null,pendingOpener=null;
-  let originalMaxWidth = 920;
+  let nativeMenuObserver=null,nativeMenuFrame=null,nativeMenuStyle=null;
+  const nativeMenuMarks=new Map();
+  const ACTION_MENU='[role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [data-radix-menu-content], [aria-haspopup="menu"], [aria-haspopup="true"]';
+  let originalMaxWidth = 1400; // outer pane cap, not the text/content cap
+  let contentWidthDetected=false,contentLayoutTimer=null,contentLayoutObserver=null;
   let settingsInputs = null;
   const SIDE_NAV = '#ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-app-navigation-rail], [data-app-action-sidebar-scroll], [data-sidebar-destination]';
   const FRAME_NAV_CSS = `
@@ -52,24 +57,36 @@
   }
 
   function readOriginalMaxWidth() {
-    // Prefer ChatGPT's own conversation max-width variable. A detached measurement
-    // element resolves rem, vw, CSS calc, etc. Never writes ChatGPT styles.
-    try {
-      const candidates = [document.documentElement, document.body, document.querySelector('main')].filter(Boolean);
-      for (const node of candidates) {
-        const value = getComputedStyle(node).getPropertyValue('--thread-content-max-width').trim();
-        if (!value) continue;
-        const probe = document.createElement('span');
-        probe.style.cssText = 'position:absolute;visibility:hidden;display:block;pointer-events:none;';
-        probe.style.width = value;
-        document.documentElement.appendChild(probe);
-        const measured = probe.getBoundingClientRect().width;
-        probe.remove();
-        // Match the actual content cap; do not add an undocumented 48px.
-        if (measured > 400 && measured < 1100) return Math.round(measured);
-      }
-    } catch { /* fallback is intentionally conservative */ }
-    return 920;
+    if(!Layout)return 1400;
+    const measurement=Layout.inspect(document,{compact:true});
+    contentWidthDetected=measurement.detected;
+    return measurement.outerMax;
+  }
+
+  function refreshContentLayout() {
+    contentLayoutTimer=null;
+    if(!Layout)return;
+    const native=Layout.inspect(document,{compact:true});
+    const caps=native.detected?[native.outerMax]:[];let unknownFrame=false;
+    for(const entry of paneNodes.values()){
+      const frame=entry.iframe;
+      try{
+        if(!frame?.contentDocument||frame.contentWindow.location.origin!==Core.ORIGIN)continue;
+        const doc=frame.contentDocument;
+        if(frame._cgwwContentDocument!==doc){frame._cgwwContentDocument=doc;frame._cgwwScrollbarAllowance=0;}
+        const measurement=Layout.inspect(doc,{compact:true,scrollbarAllowance:frame._cgwwScrollbarAllowance||0});
+        frame._cgwwScrollbarAllowance=measurement.scrollbarAllowance;
+        Layout.apply(doc,measurement);
+        if(measurement.detected)caps.push(measurement.outerMax);else unknownFrame=true;
+      }catch{/* Authentication or cross-origin documents stay untouched. */}
+    }
+    const detected=caps.length>0&&!unknownFrame,next=detected?Math.max(...caps):1400;
+    if(next!==originalMaxWidth||detected!==contentWidthDetected){originalMaxWidth=next;contentWidthDetected=detected;applyColumnWidths();syncOverlay();}
+  }
+
+  function scheduleContentLayout() {
+    if(!Layout||contentLayoutTimer!==null)return;
+    contentLayoutTimer=setTimeout(refreshContentLayout,100);
   }
 
   function measureNativeSidebar() {
@@ -141,6 +158,74 @@
     masterObserver?.disconnect();masterObserver=null;
     if(masterFrame!==null){cancelAnimationFrame(masterFrame);masterFrame=null;}
     window.removeEventListener('resize',scheduleMasterSidebar);document.removeEventListener('transitionend',scheduleMasterSidebar,true);releaseMasterSidebar();
+  }
+
+  // Native action menus are commands, not history navigation. This also covers
+  // links and retargeted events, before either history or new-chat interception.
+  function isNativeActionMenuEvent(event) {
+    const path=typeof event.composedPath==='function'?event.composedPath():[event.target];
+    return path.some(node=>node?.matches?.(ACTION_MENU)||node?.closest?.(ACTION_MENU));
+  }
+
+  function clearNativeMenuMarks() {
+    for(const [node,attrs] of nativeMenuMarks)for(const attr of attrs)node.removeAttribute(attr);
+    nativeMenuMarks.clear();
+  }
+
+  function syncNativeMenus() {
+    if(!state.enabled)return;
+    const desired=new Map();
+    const mark=(node,attr)=>{if(!node)return;let attrs=desired.get(node);if(!attrs)desired.set(node,attrs=new Set());attrs.add(attr);};
+    const layer=node=>{
+      mark(node,'data-cgww-native-menu-layer');
+      if(nativeMenuMarks.get(node)?.has('data-cgww-native-menu-position')||getComputedStyle(node).position==='static')mark(node,'data-cgww-native-menu-position');
+    };
+    for(const menu of document.querySelectorAll('[role="menu"], [data-radix-menu-content]')) {
+      if(menu.hidden||menu.getAttribute('data-state')==='closed'||!menu.getClientRects().length)continue;
+      const css=getComputedStyle(menu);if(css.visibility==='hidden'||css.display==='none')continue;
+      // Radix positions its portal wrapper, so elevate that stacking context too.
+      // Do not raise arbitrary app roots or rewrite site inline styles.
+      const wrapper=menu.closest('[data-radix-popper-content-wrapper]');
+      layer(menu);if(wrapper)layer(wrapper);
+      let sidebar=null;
+      for(let node=menu.parentElement;node&&node!==document.body&&node!==document.documentElement;node=node.parentElement)if(node.matches(SIDE_NAV))sidebar=node;
+      if(sidebar) {
+        // A non-portaled submenu must escape the pinned sidebar's scroll clip.
+        // Only its ancestor chain is relaxed, only while a menu is open.
+        for(let node=menu.parentElement;node&&node!==document.body&&node!==document.documentElement;node=node.parentElement) {
+          layer(node);mark(node,'data-cgww-native-menu-overflow');
+          if(node===sidebar)break;
+        }
+      }
+    }
+    for(const [node,attrs] of nativeMenuMarks)for(const attr of attrs)if(!desired.get(node)?.has(attr))node.removeAttribute(attr);
+    for(const [node,attrs] of desired)for(const attr of attrs)if(!nativeMenuMarks.get(node)?.has(attr))node.setAttribute(attr,'');
+    nativeMenuMarks.clear();for(const [node,attrs] of desired)nativeMenuMarks.set(node,attrs);
+  }
+
+  function scheduleNativeMenus() {
+    if(nativeMenuFrame!==null)return;
+    nativeMenuFrame=requestAnimationFrame(()=>{nativeMenuFrame=null;syncNativeMenus();});
+  }
+
+  function startNativeMenuWatch() {
+    if(nativeMenuObserver||typeof MutationObserver!=='function')return;
+    nativeMenuStyle=document.createElement('style');nativeMenuStyle.id='cgww-native-menu-layers';
+    nativeMenuStyle.textContent='[data-cgww-native-menu-layer][data-cgww-native-menu-layer]{z-index:2147483647!important}[data-cgww-native-menu-position]{position:relative!important}[data-cgww-native-menu-overflow][data-cgww-native-menu-overflow]{overflow:visible!important}';
+    document.documentElement.appendChild(nativeMenuStyle);
+    // Run in the mutation microtask: newly mounted submenus must be raised
+    // before their first paint, not after a deferred animation frame.
+    nativeMenuObserver=new MutationObserver(syncNativeMenus);
+    nativeMenuObserver.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','role','data-state','aria-expanded']});
+    window.addEventListener('resize',scheduleNativeMenus);document.addEventListener('transitionend',scheduleNativeMenus,true);
+    syncNativeMenus();
+  }
+
+  function stopNativeMenuWatch() {
+    nativeMenuObserver?.disconnect();nativeMenuObserver=null;
+    if(nativeMenuFrame!==null){cancelAnimationFrame(nativeMenuFrame);nativeMenuFrame=null;}
+    window.removeEventListener('resize',scheduleNativeMenus);document.removeEventListener('transitionend',scheduleNativeMenus,true);
+    clearNativeMenuMarks();nativeMenuStyle?.remove();nativeMenuStyle=null;
   }
 
   function updateFallbackDock() {
@@ -288,6 +373,9 @@
     const hintbar=create('div','hintbar');hintbar.hidden=true;hintbar.setAttribute('role','status');flashNode=create('span','flash','ドラッグで列を移動。Alt+←/→でも並べ替えできます。');hintbar.appendChild(flashNode);panel.appendChild(hintbar);
     shadow.appendChild(panel);makeOverlay();document.documentElement.appendChild(host);
     originalMaxWidth=readOriginalMaxWidth();
+    if(Layout&&typeof MutationObserver==='function'){contentLayoutObserver=new MutationObserver(scheduleContentLayout);contentLayoutObserver.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});}
+    window.addEventListener('resize',scheduleContentLayout);
+    document.addEventListener('load',event=>{if(event.target?.tagName==='LINK'&&/\bstylesheet\b/i.test(event.target.rel||''))scheduleContentLayout();},true);
     updateGeometry();applyColumnWidths();
     if(typeof ResizeObserver==='function'){geometryObserver=new ResizeObserver(()=>applyColumnWidths());geometryObserver.observe(scroller);}else window.addEventListener('resize',applyColumnWidths);
   }
@@ -313,7 +401,8 @@
     viewToggle.setAttribute('aria-label',state.enabled?'元の画面を表示':(state.panes.length?'分割表示に戻る':'分割表示を開始'));
     if(!menuControls)return;
     menuControls.add.disabled=!state.enabled;menuControls.url.disabled=!state.enabled;menuControls.width.disabled=!state.enabled||settings.equalizeColumns;menuControls.apply.disabled=menuControls.width.disabled;
-    menuControls.width.value=String(settings.paneWidth);menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
+    menuControls.width.value=String(Math.min(settings.paneWidth,originalMaxWidth));menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
+    if(menuControls.widthHelp)menuControls.widthHelp.textContent=contentWidthDetected?'広い列は元の本文上限、狭い列は折り返します。':'本文上限が未検出の会話では余白を変更しません。列幅は手動調整できます。';
     const chosen=menuControls.hidden.value;menuControls.hidden.replaceChildren();
     for(const p of state.panes.filter(p=>!p.visible)){const option=create('option','',p.title);option.value=p.id;menuControls.hidden.appendChild(option);}
     if(state.panes.some(p=>!p.visible&&p.id===chosen))menuControls.hidden.value=chosen;
@@ -332,10 +421,11 @@
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{addNewChat();syncOverlay();}),url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().append(add,url);
     const equalLabel=create('label','','列を等分 '),equal=create('input');equal.type='checkbox';equal.setAttribute('aria-label','列を等分');equal.addEventListener('change',()=>{setEqualize(equal.checked);syncOverlay();});equalLabel.appendChild(equal);row().appendChild(equalLabel);
     const widthRow=row(),widthLabel=create('label','','列幅 (px)'),width=create('input');width.id='cgww-menu-width';width.type='number';width.min='320';width.max=String(originalMaxWidth);widthLabel.htmlFor=width.id;const apply=button('適用','全列の幅を変更',()=>{if(!width.checkValidity())return;settings.paneWidth=Core.boundedNumber(width.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes)p.width=settings.paneWidth;applyColumnWidths();savePrefs();safeSave();syncOverlay();});widthRow.append(widthLabel,width,apply);
+    const widthHelp=create('p','overlay-note');overlayMenu.appendChild(widthHelp);
     const restoreRow=row(),hidden=create('select');hidden.setAttribute('aria-label','隠した列');const restore=button('戻す','隠した列を復帰',()=>{const p=state.panes.find(p=>p.id===hidden.value&&!p.visible);if(!p)return;p.visible=true;state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();syncOverlay();});restoreRow.append(hidden,restore);
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
     overlayMenu.appendChild(create('p','overlay-note','元画面では通常どおり操作できます。列は保持されますが、このページの再読み込みでは未送信入力を失います。'));
-    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,hidden,restore};
+    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,hidden,restore,widthHelp};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -398,8 +488,8 @@
     }
     if (state.enabled) {
       for (const p of state.panes) if (p.visible) renderPane(p);
-      startMasterWatch();ensureMasterSidebar();
-    } else {stopMasterWatch();updateFallbackDock();}
+      startMasterWatch();ensureMasterSidebar();startNativeMenuWatch();
+    } else {stopNativeMenuWatch();stopMasterWatch();updateFallbackDock();}
     applyColumnWidths(); syncOverlay(); safeSave();
   }
 
@@ -434,6 +524,7 @@
   }
 
   function handleNewChatClick(event) {
+    if(isNativeActionMenuEvent(event))return false;
     if(!state.enabled||!settings.interceptSidebar||event.button!==0||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
     if(!newChatControl(event))return false;
     event.preventDefault();event.stopImmediatePropagation();addNewChat();return true;
@@ -529,6 +620,7 @@
   }
 
   function handleHistoryClick(event) {
+    if(isNativeActionMenuEvent(event))return;
     if(handleNewChatClick(event))return;
     if (!state.enabled || !settings.interceptSidebar || event.button !== 0 || event.defaultPrevented) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -551,6 +643,7 @@
       if (frame._cgwwDocument === doc) return;
       frame._cgwwDocument = doc;
       doc.addEventListener('click', event => {
+        if(isNativeActionMenuEvent(event))return;
         closeOverlay(false);
         if(handleNewChatClick(event))return;
         if (!state.enabled || !settings.interceptSidebar || event.button !== 0 || event.defaultPrevented) return;
@@ -591,7 +684,7 @@
         frame._cgwwFrameCleanup?.();
         frame._cgwwObservedDocument = doc;
         const observer = new MutationObserver(() => {
-          syncNewChatLocation(frame);
+          syncNewChatLocation(frame);scheduleContentLayout();
           const existing = doc.getElementById('cgww-frame-nav-hide');
           if (!existing) applyIframeSidebarRule(frame);
           else if (settings.hideFrameSidebar) tagEmbeddedNavigation(frame);
@@ -604,6 +697,7 @@
         // A new stylesheet may finish loading after the DOM mutation callback.
         // Recheck once layout is ready, independently of parent-sidebar pinning.
         const afterLayout = () => {
+          scheduleContentLayout();
           // Offscreen iframe animation frames may be deferred. Inspect the now-loaded
           // stylesheet immediately, then once more after layout for visible frames.
           if(settings.hideFrameSidebar)tagEmbeddedNavigation(frame);
@@ -632,7 +726,7 @@
       try {
         const doc = frame.contentDocument;
         if (doc && frame.contentWindow.location.origin === Core.ORIGIN && doc.body?.children.length) {
-          syncNewChatLocation(frame);applyIframeSidebarRule(frame);
+          syncNewChatLocation(frame);applyIframeSidebarRule(frame);scheduleContentLayout();
           attachEmbeddedNavigation(frame, p);
           setTimeout(ensureMasterSidebar, 250);
           const displayedUrl = frame.contentWindow.location.href;
@@ -731,7 +825,7 @@
   }
 
   function actionState() {
-    return {ok:true,enabled:state.enabled,equalizeColumns:settings.equalizeColumns,paneWidth:settings.paneWidth,maxWidth:originalMaxWidth,visibleCount:state.panes.filter(p=>p.visible).length,totalCount:state.panes.length,hiddenPanes:state.panes.filter(p=>!p.visible).map(p=>({id:p.id,title:p.title}))};
+    return {ok:true,enabled:state.enabled,equalizeColumns:settings.equalizeColumns,paneWidth:settings.paneWidth,maxWidth:originalMaxWidth,contentWidthDetected,visibleCount:state.panes.filter(p=>p.visible).length,totalCount:state.panes.length,hiddenPanes:state.panes.filter(p=>!p.visible).map(p=>({id:p.id,title:p.title}))};
   }
 
   function handleAction(message,sender,reply) {
