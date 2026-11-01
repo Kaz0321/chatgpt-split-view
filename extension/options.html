@@ -19,11 +19,15 @@
 
     <form id="settings-form">
       <fieldset id="settings-fields" disabled>
-        <legend>左側の履歴と表示</legend>
+        <legend>表示</legend>
+        <div class="field width-field">
+          <label for="content-padding">本文左右余白上限</label>
+          <div class="number-field"><input id="content-padding" name="contentPadding" type="number" min="0" max="12" step="1" required inputmode="numeric"><span aria-hidden="true">px</span><button id="reset-content-padding" type="button">リセット</button></div>
+        </div>
         <div class="field width-field">
           <label for="sidebar-width">左側に残す表示幅</label>
           <div class="number-field"><input id="sidebar-width" name="sidebarWidth" type="number" min="180" max="520" step="1" required inputmode="numeric" aria-describedby="sidebar-width-help"><span aria-hidden="true">px</span></div>
-          <p id="sidebar-width-help" class="help">180〜520 px。拡張が覆わずに残す領域です。ChatGPT本来の履歴の幅は変わりません。</p>
+          <p id="sidebar-width-help" class="help">180〜520 px。左一覧に確保する幅です。</p>
         </div>
         <div class="field check-field">
           <input id="keep-master-sidebar" name="keepMasterSidebar" type="checkbox" aria-describedby="keep-master-sidebar-help">

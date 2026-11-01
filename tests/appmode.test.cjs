@@ -92,6 +92,14 @@ test('restoring empty or all-parked workspace never creates an extra conversatio
  const h=harness();h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,0);const p={id:'parked',visible:false};h.a.init([p]);h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,1);assert.equal(p.visible,false);
 });
 
+test('direct actions remain outside the closed menu and add exactly one chat from original mode',()=>{
+ const h=harness();h.a.makeOverlay();const u=h.a.ui();assert.equal(u.overlayMenu.hidden,true);
+ assert.equal(u.overlay.children[1],u.launcher);assert.equal(u.overlay.children[2],u.menuControls.add);assert.equal(u.overlay.children[3],u.menuControls.sidebarVisible);assert.equal(u.menuControls.padding,undefined);
+ u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,1);assert.equal(h.a.state().enabled,true);assert.equal(u.overlayMenu.hidden,true);
+ u.menuControls.sidebarVisible.emit('click');assert.equal(h.a.sidebarWidth(),0);assert.equal(u.menuControls.sidebarVisible.getAttribute('aria-label'),'左一覧を表示');assert.equal(u.overlayMenu.hidden,true);
+ u.menuControls.sidebarVisible.emit('click');assert.equal(u.menuControls.sidebarVisible.getAttribute('aria-label'),'左一覧を隠す');assert.equal(u.overlayMenu.hidden,true);
+});
+
 test('native default and full reset use measured outer width while manual width stays independent',()=>{
  const h=harness();h.a.enabled(true);h.a.addNewChat();h.a.nativeCap(814);const p=h.a.state().panes[0];assert.equal(h.a.getPaneWidth(p),814);p.autoWidth=false;p.width=450;assert.equal(h.a.getPaneWidth(p),450);h.a.resetPaneWidths();assert.equal(h.a.getPaneWidth(p),814);assert.equal(p.autoWidth,true);assert.equal(h.a.settings().equalizeColumns,false);
 });

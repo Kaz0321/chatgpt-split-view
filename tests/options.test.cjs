@@ -24,7 +24,7 @@ class Element {
 function harness(initial = {}) {
   let stored = Core.normalizeSettings(initial);
   const nodes = Object.fromEntries(['settings-form', 'settings-fields', 'status', 'save-settings', 'discard-settings',
-    'export-settings', 'import-settings', 'import-file', 'retry-load', 'sidebar-width', 'keep-master-sidebar',
+    'export-settings', 'import-settings', 'import-file', 'retry-load', 'content-padding', 'reset-content-padding', 'sidebar-width', 'keep-master-sidebar',
     'intercept-sidebar', 'hide-frame-sidebar'].map(id => [id, new Element()]));
   const listeners = new Set();
   const state = { writes: [], failGet: false, failSet: false, confirmations: [], confirmResult: true, downloads: [], created: [] };
@@ -78,7 +78,7 @@ function harness(initial = {}) {
       if (notify) for (const listener of listeners) listener({ [KEY]: { newValue: value } }, area);
     },
     async change(id, value, event = 'change') {
-      if (id === 'sidebar-width') nodes[id].value = String(value); else nodes[id].checked = value;
+      if (['sidebar-width','content-padding'].includes(id)) nodes[id].value = String(value); else nodes[id].checked = value;
       await nodes[id].emit(event);
     },
     async import(value, size) {
@@ -90,6 +90,15 @@ function harness(initial = {}) {
     }
   };
 }
+
+test('padding edits save independently and reset remains a pending change until saved',async()=>{
+ const h=harness({contentPadding:6,paneWidth:490,sidebarLocked:true,sidebarVisible:false});await settle();
+ assert.equal(h.nodes['content-padding'].value,'6');await h.change('content-padding',0,'input');await h.nodes['settings-form'].emit('submit');assert.equal(h.stored.contentPadding,0);assert.equal(h.stored.paneWidth,490);assert.equal(h.stored.sidebarLocked,true);assert.equal(h.stored.sidebarVisible,false);
+ await h.nodes['reset-content-padding'].emit('click');assert.equal(h.nodes['content-padding'].value,'12');assert.equal(h.stored.contentPadding,0);await h.nodes['settings-form'].emit('submit');assert.equal(h.stored.contentPadding,12);
+});
+test('padding rejects out-of-range, empty and fractional inputs without writes',async()=>{
+ const h=harness({contentPadding:6});await settle();for(const value of ['',13,-1,1.5]){await h.change('content-padding',value,'input');await h.nodes['settings-form'].emit('submit');assert.equal(h.state.writes.length,0);}assert.equal(h.stored.contentPadding,6);
+});
 
 test('settings export never includes conversation data or unknown properties', () => {
   const result = Options.makeExport({ ...Core.DEFAULTS, paneWidth: 760, panes: [{ url: 'private', title: 'private' }], url: 'private', title: 'private' });
@@ -278,7 +287,7 @@ test('options assets use external scripts/styles, associated labels and no remot
 test('browser script initializes through CGWWCore without CommonJS or inline handlers', async () => {
   const vm = require('node:vm');
   const nodes = Object.fromEntries(['settings-form', 'settings-fields', 'status', 'save-settings', 'discard-settings',
-    'export-settings', 'import-settings', 'import-file', 'retry-load', 'sidebar-width', 'keep-master-sidebar',
+    'export-settings', 'import-settings', 'import-file', 'retry-load', 'content-padding', 'reset-content-padding', 'sidebar-width', 'keep-master-sidebar',
     'intercept-sidebar', 'hide-frame-sidebar'].map(id => [id, new Element()]));
   const context = vm.createContext({
     CGWWCore: Core, TextEncoder,

@@ -5,7 +5,7 @@
   const PREF_KEY = 'cgww.v1.preferences';
   const MAX_IMPORT_BYTES = 64 * 1024;
   const SETTINGS_KEYS = Object.freeze(['sidebarVisible', 'sidebarLocked', 'nativePaneWidth', 'contentPadding', 'sidebarWidth', 'paneWidth', 'keepMasterSidebar', 'interceptSidebar', 'hideFrameSidebar', 'equalizeColumns']);
-  const FIELD_IDS = Object.freeze({ sidebarWidth: 'sidebar-width', keepMasterSidebar: 'keep-master-sidebar', interceptSidebar: 'intercept-sidebar', hideFrameSidebar: 'hide-frame-sidebar' });
+  const FIELD_IDS = Object.freeze({ contentPadding: 'content-padding', sidebarWidth: 'sidebar-width', keepMasterSidebar: 'keep-master-sidebar', interceptSidebar: 'intercept-sidebar', hideFrameSidebar: 'hide-frame-sidebar' });
 
   function makeExport(settings) {
     return { kind: 'ChatGPTWideWorkspaceSettings', schemaVersion: Core.SCHEMA_VERSION, settings: Core.normalizeSettings(settings) };
@@ -89,7 +89,7 @@
     function renderFields() {
       for (const [key, field] of Object.entries(fields)) {
         if (dirty.has(key)) continue;
-        if (key === 'sidebarWidth') field.value = String(preferences[key]);
+        if (typeof Core.DEFAULTS[key] === 'number') field.value = String(preferences[key]);
         else field.checked = preferences[key];
       }
       updateButtons();
@@ -130,15 +130,17 @@
     }
 
     for (const [key, field] of Object.entries(fields)) {
-      field.addEventListener(key === 'sidebarWidth' ? 'input' : 'change', () => {
+      field.addEventListener(typeof Core.DEFAULTS[key] === 'number' ? 'input' : 'change', () => {
         if (!ready || busy) return;
-        const current = key === 'sidebarWidth' ? Number(field.value) : field.checked;
-        if ((key !== 'sidebarWidth' || field.value.trim() !== '') && current === preferences[key]) dirty.delete(key);
+        const current = typeof Core.DEFAULTS[key] === 'number' ? Number(field.value) : field.checked;
+        if ((typeof Core.DEFAULTS[key] !== 'number' || field.value.trim() !== '') && current === preferences[key]) dirty.delete(key);
         else dirty.add(key);
         setStatus(dirty.size ? '未保存の変更があります。' : '保存済みの設定と同じです。');
         updateButtons();
       });
     }
+
+    find('reset-content-padding').addEventListener('click',()=>{if(!ready||busy)return;fields.contentPadding.value=String(Core.DEFAULTS.contentPadding);if(preferences.contentPadding===Core.DEFAULTS.contentPadding)dirty.delete('contentPadding');else dirty.add('contentPadding');setStatus('余白を12pxに戻しました。変更を保存してください。');updateButtons();});
 
     form.addEventListener('submit', async event => {
       event.preventDefault();
@@ -149,8 +151,10 @@
         fields.sidebarWidth.focus();
         return;
       }
+      const padding=Number(fields.contentPadding.value);
+      if(!fields.contentPadding.value.trim()||!Number.isInteger(padding)||padding<0||padding>12){setStatus('余白は0〜12の整数で入力してください。',true);fields.contentPadding.focus();return;}
       const patch = {};
-      for (const key of dirty) patch[key] = key === 'sidebarWidth' ? width : fields[key].checked;
+      for (const key of dirty) patch[key] = typeof Core.DEFAULTS[key] === 'number' ? Number(fields[key].value) : fields[key].checked;
       busy = true;
       updateButtons();
       setStatus('設定を保存しています…');

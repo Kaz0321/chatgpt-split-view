@@ -358,8 +358,8 @@
     style.textContent = `
       :host{all:initial}*,*::before,*::after{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer}
       button:focus-visible,input:focus-visible{outline:2px solid #448af0;outline-offset:1px}
-      .overlay{position:fixed;z-index:2147483646;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid #aebdcd;border-radius:7px;background:#f8fafc;color:#344b61;font:12px system-ui;pointer-events:auto}
-      .overlay button{height:28px;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;padding:0 7px;white-space:nowrap}
+      .overlay{position:fixed;z-index:2147483646;display:flex;flex-wrap:wrap;max-width:calc(100vw - 20px);align-items:center;gap:2px;padding:3px;border:1px solid #aebdcd;border-radius:7px;background:#f8fafc;color:#344b61;font:12px system-ui;pointer-events:auto}
+      .overlay button{min-height:28px;max-width:100%;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;padding:0 7px;white-space:nowrap}
       .overlay button:hover{background:#e5edf5;border-color:#cad6e1}.overlay .overlay-grip{width:20px;padding:0;cursor:move;touch-action:none}
       .overlay-menu{position:fixed;z-index:2147483647;width:300px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;border:1px solid #aebdcd;border-radius:8px;background:#fff;color:#243b51;padding:12px;font:12px/1.5 system-ui;pointer-events:auto}
       [hidden]{display:none!important}.overlay-menu h3{font-size:13px;margin:0}.overlay-menu .menu-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
@@ -419,9 +419,9 @@
     viewToggle.title=state.enabled?'元のChatGPT画面を表示（列と下書きは保持）':'分割表示へ戻る';
     viewToggle.setAttribute('aria-label',state.enabled?'元の画面を表示':(state.panes.length?'分割表示に戻る':'分割表示を開始'));
     if(!menuControls)return;
-    menuControls.add.disabled=!state.enabled;menuControls.url.disabled=!state.enabled;menuControls.width.disabled=!state.enabled||settings.equalizeColumns;menuControls.apply.disabled=menuControls.width.disabled;
+    menuControls.add.disabled=false;menuControls.sidebarVisible.disabled=!state.enabled;menuControls.url.disabled=!state.enabled;menuControls.width.disabled=!state.enabled||settings.equalizeColumns;menuControls.apply.disabled=menuControls.width.disabled;
     menuControls.width.value=String(settings.nativePaneWidth?(contentWidthDetected?originalMaxWidth:Core.DEFAULTS.paneWidth):Math.min(settings.paneWidth,originalMaxWidth));menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
-    menuControls.sidebarVisible.textContent=settings.sidebarVisible?'左一覧を隠す':'左一覧を表示';menuControls.sidebarVisible.setAttribute('aria-pressed',String(settings.sidebarVisible));
+    menuControls.sidebarVisible.textContent=settings.sidebarVisible?'左一覧を隠す':'左一覧を表示';menuControls.sidebarVisible.setAttribute('aria-pressed',String(settings.sidebarVisible));menuControls.sidebarVisible.setAttribute('aria-label',menuControls.sidebarVisible.textContent);
     menuControls.sidebar.value=String(settings.sidebarWidth);menuControls.sidebar.disabled=settings.sidebarLocked;menuControls.sidebarApply.disabled=settings.sidebarLocked;menuControls.sidebarReset.disabled=settings.sidebarLocked;
     menuControls.sidebarLock.textContent=settings.sidebarLocked?'ロック解除':'ロック';menuControls.sidebarLock.setAttribute('aria-pressed',String(settings.sidebarLocked));
     menuControls.parkedList.replaceChildren();
@@ -433,7 +433,6 @@
       row.append(name,restore);menuControls.parkedList.appendChild(row);
     }
     if(!parked.length)menuControls.parkedList.appendChild(create('p','','退避中の会話はありません。'));
-    menuControls.padding.value=String(settings.contentPadding);
     menuControls.draftList.replaceChildren();
     for(const p of state.panes.filter(p=>p.draft)){
       const row=create('div','menu-row');row.appendChild(button(`${p.title} の保存済み下書き`,'保存済みテキストを表示',()=>{const field=create('textarea');field.readOnly=true;field.value=p.draft;field.setAttribute('aria-label',`${p.title} の保存済み下書き`);row.replaceChildren(field);field.focus();field.select();}));menuControls.draftList.appendChild(row);
@@ -542,27 +541,25 @@
     overlay=create('div','overlay');overlay.setAttribute('role','group');overlay.setAttribute('aria-label','Split View 操作');
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
     launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
+    const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
+    const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
     viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
     const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
     const row=()=>{const e=create('div','menu-row');overlayMenu.appendChild(e);return e;};
-    const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{addNewChat();syncOverlay();}),url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().append(add,url);
+    const url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().appendChild(url);
     const equalLabel=create('label','','列を等分 '),equal=create('input');equal.type='checkbox';equal.setAttribute('aria-label','列を等分');equal.addEventListener('change',()=>{setEqualize(equal.checked);syncOverlay();});equalLabel.appendChild(equal);row().appendChild(equalLabel);
     const widthRow=row(),widthLabel=create('label','','全列幅 (px)'),width=create('input');width.id='cgww-menu-width';width.type='number';width.min='320';width.max=String(originalMaxWidth);widthLabel.htmlFor=width.id;const apply=button('適用','全列の幅を変更',()=>{if(!width.checkValidity())return;settings.nativePaneWidth=false;settings.paneWidth=Core.boundedNumber(width.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=false;}applyColumnWidths();savePrefs();safeSave();syncOverlay();});const widthReset=button('リセット','全列をChatGPT標準幅に戻す',resetPaneWidths);widthReset.setAttribute('aria-label','全列幅をリセット');widthRow.append(widthLabel,width,apply,widthReset);
-    const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar);sidebarVisible.setAttribute('aria-label','左一覧の表示切替');row().appendChild(sidebarVisible);
     const sideRow=row(),sidebar=create('input');sidebar.type='number';sidebar.min='180';sidebar.max='520';sidebar.setAttribute('aria-label','左一覧幅 (px)');
     const sidebarApply=button('適用','左一覧幅を適用',()=>{if(sidebar.checkValidity())setSidebarWidth(sidebar.value);});
     const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
     const sidebarLock=button('ロック','左一覧の幅変更をロック・解除',()=>{settings.sidebarLocked=!settings.sidebarLocked;updateGeometry();savePrefs();safeSave();syncOverlay();});sidebarLock.setAttribute('aria-label','左一覧幅のロック');
     sideRow.append(create('label','','左一覧幅 (px)'),sidebar,sidebarApply);row().append(sidebarReset,sidebarLock);
-    const paddingRow=row(),padding=create('input');padding.type='number';padding.min='0';padding.max='12';padding.setAttribute('aria-label','本文左右余白上限 (px)');
-    const setPadding=value=>{settings.contentPadding=Core.boundedNumber(value,12,0,12);scheduleContentLayout();savePrefs();safeSave();syncOverlay();};
-    paddingRow.append(create('label','','本文左右余白上限 (px)'),padding,button('保存','本文の左右余白を保存',()=>{if(padding.checkValidity())setPadding(padding.value);}),button('リセット','余白を12pxへ戻す',()=>setPadding(12)));
     const parkedHeading=create('h3','','退避中 (0)'),parkedList=create('div'),draftList=create('div');overlayMenu.append(parkedHeading,parkedList,draftList);
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,padding,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
