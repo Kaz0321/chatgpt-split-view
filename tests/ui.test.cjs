@@ -21,6 +21,6 @@ test('alignment preserves the 32px header and content resize boundary', () => {
   assert.match(source, /\.pane-head\{height:32px;min-height:32px;/);
   assert.match(source, /\.pane-title\{[^}]*height:24px;/);
   assert.match(source, /\.resize\{[^}]*top:32px;/);
-  assert.ok(source.includes("root.hidden = true;"));
-  assert.ok(source.includes("setStatus('列を非表示にしました。iframeは保持されています。')"));
+  assert.ok(source.includes("entry.root.hidden=true"));
+  assert.ok(source.includes("'pane-control pane-park'"));
 });

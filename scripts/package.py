@@ -42,7 +42,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Validate an existing package against source')
     args = parser.parse_args()
-    manifest = json.loads((EXTENSION / 'manifest.json').read_text())
+    manifest = json.loads((EXTENSION / 'manifest.json').read_text(encoding='utf-8'))
     version = manifest['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:\.\d+)?', version):
         raise ValueError('Invalid manifest version')
