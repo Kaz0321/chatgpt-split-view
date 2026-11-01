@@ -234,3 +234,19 @@ test('content measurement coalesces repeated events into one timer',()=>{
   for(let i=0;i<100;i++)hooks.scheduleContentLayout();assert.equal(queued.length,1);assert.equal(queued[0].ms,100);
   queued[0].fn();hooks.scheduleContentLayout();assert.equal(queued.length,2);
 });
+
+test('embedded boundary treatment is removed when navigation is shown again',()=>{
+  let style;
+  const doc={documentElement:{appendChild(el){style=el;}},getElementById(){return style;},
+    createElement(){return {};},querySelectorAll(){return [];}};
+  const {hooks}=harness({MutationObserver:class {observe(){}}});
+  const frame={contentDocument:doc,contentWindow:{location:{origin:C.ORIGIN}},clientWidth:600,clientHeight:800};
+  hooks.setSettings({hideFrameSidebar:true});
+  hooks.applyIframeSidebarRule(frame);
+  assert.match(style.textContent,/main\[class\*="MainContentLeftBorder-"\]/);
+  const original=style;
+  hooks.setSettings({hideFrameSidebar:false});
+  hooks.applyIframeSidebarRule(frame);
+  assert.equal(style,original);
+  assert.equal(style.textContent,'','native boundary and navigation styles must return together');
+});

@@ -48,6 +48,9 @@
       overflow: hidden !important;
     }
     :root { --sidebar-width: 0px; --sidebar-current-width: 0px; }
+    /* The hidden navigation's divider belongs to the adjacent main surface.
+       Keep this inside the iframe-only, hideFrameSidebar stylesheet. */
+    main[class*="MainContentLeftBorder-"] { border-left-width: 0 !important; }
   `;
 
   function newId() {
