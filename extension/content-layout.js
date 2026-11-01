@@ -9,15 +9,15 @@
     const n=Number.parseFloat(value);return Number.isFinite(n)?n:null;
   }
   function number(value){return pixels(value)||0;}
-  function columnGeometry(style,compact=false){
+  function columnGeometry(style,compact=false,gutter=GUTTER){
     const max=pixels(style.maxWidth);
     if(max===null||max<400||max>1400)return null;
     const left=number(style.paddingLeft),right=number(style.paddingRight);
     const border=number(style.borderLeftWidth)+number(style.borderRightWidth);
     const contentMax=max-(style.boxSizing==='border-box'?left+right+border:0);
     if(contentMax<320)return null;
-    const paddingLeft=compact?Math.min(left,GUTTER):left;
-    const paddingRight=compact?Math.min(right,GUTTER):right;
+    const paddingLeft=compact?Math.min(left,Math.max(0,Math.min(12,gutter))):left;
+    const paddingRight=compact?Math.min(right,Math.max(0,Math.min(12,gutter))):right;
     return {contentMax,paddingLeft,paddingRight,border,
       columnMax:contentMax+paddingLeft+paddingRight+border};
   }
@@ -53,7 +53,7 @@
     }
     return {insets:sum,scrollbars};
   }
-  function inspect(doc,{compact=false,scrollbarAllowance=0,frameBorder=2}={}){
+  function inspect(doc,{compact=false,gutter=GUTTER,scrollbarAllowance=0,frameBorder=2}={}){
     const win=doc?.defaultView;
     if(!win?.getComputedStyle||!doc?.documentElement||!doc.querySelectorAll)return {detected:false,outerMax:1400,columns:[],scrollbarAllowance};
     // Temporarily untag our own rules, synchronously, so responsive native CSS is
@@ -64,7 +64,7 @@
     let columns;
     try{
       columns=findColumns(doc,win).map(({node})=>{
-        const geometry=columnGeometry(win.getComputedStyle(node),compact);
+        const geometry=columnGeometry(win.getComputedStyle(node),compact,gutter);
         const ancestor=ancestorInsets(node,doc,win);
         return {node,...geometry,ancestorInsets:ancestor.insets,ancestorScrollbars:ancestor.scrollbars};
       });

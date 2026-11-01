@@ -17,7 +17,7 @@ test('only ChatGPT conversation URLs pass', () => {
 
 test('settings are bounded, privacy-preserving and typed', () => {
   assert.deepEqual(C.normalizeSettings({sidebarWidth: -30, paneWidth:99999, interceptSidebar:'true'}), {
-    sidebarWidth: 180, paneWidth:1400, interceptSidebar:true, hideFrameSidebar:true, equalizeColumns:false, keepMasterSidebar:true
+    contentPadding:12, sidebarWidth: 180, paneWidth:1400, interceptSidebar:true, hideFrameSidebar:true, equalizeColumns:false, keepMasterSidebar:true
   });
   assert.equal(C.normalizeTitle('<script>Title</script>'), '<script>Title</script>'); // textContent used by renderer, never innerHTML
 });
