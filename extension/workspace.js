@@ -10,6 +10,7 @@
   const Layout = window.CGWWLayout;
   const Drafts = window.CGWWDrafts;
   let workspaceId = null;
+  let initializing=false,initialized=false,restoringWorkspace=false,durableToken=null,saveSequence=0,pendingSnapshot=null,saveInFlight=false;
   const SESSION_KEY = 'cgww.v1.workspace';
   const PREF_KEY = 'cgww.v1.preferences';
   let settings = Core.normalizeSettings();
@@ -318,17 +319,52 @@
   }
 
   function safeSave() {
+    if(initializing||restoringWorkspace)return;
     try {
       if(!workspaceId)workspaceId=newId();
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      const snapshot={savedAt:Date.now(),
         schemaVersion:2,workspaceId,settings,
         closedPanes: closedPanes.map(({url,title,width,newChat,autoWidth})=>({url,title,width,...(typeof autoWidth==='boolean'?{autoWidth}:{}),...(newChat?{newChat:true}:{})})),
         enabled: state.enabled,
         activeUrl: state.panes.find(p => p.id === state.activeId)?.url || null,
         activeIndex:state.panes.findIndex(p=>p.id===state.activeId), overlayPosition,
         panes: state.panes.map(p => ({ id:p.id, ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
-      }));
+      };
+      try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(snapshot));}
+      catch{setStatus('このタブ内の保存に失敗しました。再起動用の保存は継続します。',true);}
+      if(durableToken){pendingSnapshot=snapshot;void flushWorkspace();}
     } catch { setStatus('このタブの状態を保存できませんでした。', true); }
+  }
+
+  function durableRequest(message) {
+    return new Promise((resolve,reject)=>{
+      if(!chrome.runtime?.sendMessage){reject(Error('Storage unavailable'));return;}
+      chrome.runtime.sendMessage({type:'CGWW_WORKSPACE',...message},result=>{
+        if(chrome.runtime.lastError||!result?.ok)reject(Error('Storage unavailable'));else resolve(result);
+      });
+    });
+  }
+
+  async function flushWorkspace() {
+    if(saveInFlight||!durableToken)return;
+    saveInFlight=true;
+    try{while(pendingSnapshot){const snapshot=pendingSnapshot;pendingSnapshot=null;await durableRequest({action:'save',id:workspaceId,token:durableToken,sequence:++saveSequence,snapshot});}}
+    catch{pendingSnapshot=null;setStatus('ブラウザ再起動用の保存に失敗しました。保存容量や拡張の状態を確認してください。',true);}
+    finally{saveInFlight=false;}
+  }
+
+  async function showSavedWorkspaces() {
+    const list=menuControls.savedList;list.replaceChildren();
+    try{const result=await durableRequest({action:'list'});
+      for(const item of result.items.filter(item=>item.id!==workspaceId)){
+        const restore=button(`${item.title} (${item.count}列) — ${new Date(item.savedAt).toLocaleString()}`,'保存した作業を復元',async()=>{
+          try{const result=await durableRequest({action:'read',id:item.id});if(!result.snapshot)throw Error('Missing workspace');
+            restoringWorkspace=true;sessionStorage.setItem(SESSION_KEY,JSON.stringify(result.snapshot));location.reload();
+          }catch{restoringWorkspace=false;setStatus('保存した作業を復元できませんでした。',true);}
+        });restore.style.whiteSpace='normal';list.appendChild(restore);
+      }
+      if(!list.children.length)list.appendChild(create('p','','ほかの保存済み作業はありません。'));
+    }catch{list.appendChild(create('p','','保存済み作業を読み込めませんでした。'));}
   }
 
   async function savePrefs() {
@@ -518,7 +554,6 @@
   }
 
   function closePane(p) {
-    if(!confirm('この列を閉じます。未送信の入力・添付・生成中の内容は失われます。履歴からはページを再読み込みして復元します。続けますか？'))return;
     const entry=paneNodes.get(p.id),frame=entry?.iframe;
     if(frame){
       frame._cgwwClosed=true;
@@ -558,8 +593,9 @@
     const parkedHeading=create('h3','','退避中 (0)'),parkedList=create('div'),draftList=create('div');overlayMenu.append(parkedHeading,parkedList,draftList);
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
+    row().appendChild(button('保存した作業を復元','ブラウザ再起動後の作業を選ぶ',showSavedWorkspaces));const savedList=create('div');overlayMenu.appendChild(savedList);
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -989,14 +1025,22 @@
   }
 
   async function initialize() {
+    if(initializing||initialized)return;initializing=true;
+    let loadError=false;
     try {
       const obj = await chrome.storage.local.get(PREF_KEY);
       settings = Core.normalizeSettings(obj?.[PREF_KEY]);
     } catch { /* keep safe defaults */ }
     try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
-      if (raw) {
-        const stored = JSON.parse(raw);
+      let stored=null;
+      try{const raw=sessionStorage.getItem(SESSION_KEY);if(raw)stored=JSON.parse(raw);}catch{/* Keep durable recovery available when session JSON is corrupt. */}
+      try{
+        const loaded=await durableRequest({action:'load',id:stored?.workspaceId});
+        workspaceId=loaded.id;durableToken=loaded.token;
+        if(loaded.snapshot&&(!stored||loaded.snapshot.savedAt>=(stored.savedAt||0)))stored=loaded.snapshot;
+        if(stored)stored={...stored,workspaceId:loaded.id};
+      }catch{loadError=true;}
+      if (stored) {
         workspaceId=typeof stored.workspaceId==='string'?stored.workspaceId:newId();
         if(stored.schemaVersion===2&&stored.settings)settings=Core.normalizeSettings(stored.settings);
         closedPanes = Core.normalizeSessionPanes(stored?.closedPanes).filter(p=>p.url).map(p=>({...p,id:newId()}));
@@ -1010,6 +1054,9 @@
     for (const p of state.panes) renderPane(p);
     applyColumnWidths(); markActive();
     if (state.enabled) setEnabled(true,true);
+    initializing=false;initialized=true;
+    if(state.panes.length||closedPanes.length)safeSave();
+    if(loadError)setStatus('ブラウザ再起動用の保存を開始できませんでした。このタブ内の復元のみ利用できます。',true);
     // Register only a capture listener. Disabled state leaves all ChatGPT links untouched.
     window.addEventListener('pagehide',captureDrafts);
     window.addEventListener('beforeunload',captureDrafts);
