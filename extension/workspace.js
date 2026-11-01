@@ -19,6 +19,7 @@
   let host, shadow, panel, launcher, scroller, flashNode, infoButton;
   let draggedPaneId=null, statusTimer=null;
   let overlay, overlayMenu, viewToggle, menuControls, overlayPosition=null;
+  let sidebarHandle;
   let fallbackDock, fallbackList, equalButton, maxWidthNote, nativeSidebarCheck;
   let geometryObserver = null;
   let masterObserver=null,masterFrame=null,masterStyle=null,pinnedMaster=null,pendingOpener=null;
@@ -28,8 +29,10 @@
   let originalMaxWidth = 1400; // outer pane cap, not the text/content cap
   let contentWidthDetected=false,contentLayoutTimer=null,contentLayoutObserver=null;
   let settingsInputs = null;
-  const SIDE_NAV = '#ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-app-navigation-rail], [data-app-action-sidebar-scroll], [data-sidebar-destination]';
+  const SIDE_NAV = '.app-shell-left-panel, #app-shell-sidebar, #ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-app-navigation-rail], [data-app-action-sidebar-scroll], [data-sidebar-destination]';
   const FRAME_NAV_CSS = `
+    .app-shell-left-panel,
+    #app-shell-sidebar,
     #ds-sidebar,
     #stage-slideover-sidebar,
     [data-testid="sidebar"],
@@ -70,6 +73,7 @@
     contentLayoutTimer=null;
     if(!Layout)return;
     const native=Layout.inspect(document,{compact:true,gutter:settings.contentPadding});
+    const nativeContentMax=native.detected&&native.columns?.length?Math.max(...native.columns.map(c=>c.contentMax)):undefined;
     const caps=native.detected?[native.outerMax]:[];let unknownFrame=false;
     for(const entry of paneNodes.values()){
       const frame=entry.iframe;
@@ -77,7 +81,7 @@
         if(!frame?.contentDocument||frame.contentWindow.location.origin!==Core.ORIGIN)continue;
         const doc=frame.contentDocument;
         if(frame._cgwwContentDocument!==doc){frame._cgwwContentDocument=doc;frame._cgwwScrollbarAllowance=0;}
-        const measurement=Layout.inspect(doc,{compact:true,gutter:settings.contentPadding,scrollbarAllowance:frame._cgwwScrollbarAllowance||0});
+        const measurement=Layout.inspect(doc,{compact:true,gutter:settings.contentPadding,contentMax:nativeContentMax,scrollbarAllowance:frame._cgwwScrollbarAllowance||0});
         frame._cgwwScrollbarAllowance=measurement.scrollbarAllowance;
         Layout.apply(doc,measurement);
         if(measurement.detected)caps.push(measurement.outerMax);else unknownFrame=true;
@@ -93,7 +97,7 @@
   }
 
   function measureNativeSidebar() {
-    const selectors = '#ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]';
+    const selectors = '.app-shell-left-panel, #app-shell-sidebar, #ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]';
     const nodes = Array.from(document.querySelectorAll(selectors));
     // Some ChatGPT variants expose the expanded pane as a nav/aside landmark.
     nodes.push(...Array.from(document.querySelectorAll('aside, nav')).slice(0, 15));
@@ -126,7 +130,7 @@
 
   function pinMasterSidebar() {
     if(!state.enabled||!settings.keepMasterSidebar){releaseMasterSidebar();return;}
-    const candidates=Array.from(document.querySelectorAll('#ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]'));
+    const candidates=Array.from(document.querySelectorAll('.app-shell-left-panel, #app-shell-sidebar, #ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]'));
     const native=candidates.find(el=>el.childElementCount>0);
     if(!native){if(pinnedMaster&&!pinnedMaster.isConnected)releaseMasterSidebar();return;}
     if(pinnedMaster!==native){pinnedMaster?.removeAttribute('data-cgww-master-sidebar');pinnedMaster=native;native.setAttribute('data-cgww-master-sidebar','true');}
@@ -284,6 +288,7 @@
       const visibleCount = state.panes.filter(p => p.visible).length;
       return Core.calculateEqualWidth(scroller?.clientWidth, visibleCount, originalMaxWidth);
     }
+    if(pane.autoWidth===true||(pane.autoWidth===undefined&&settings.nativePaneWidth&&(!pane.width||pane.width===620||pane.width===Core.DEFAULTS.paneWidth)))return contentWidthDetected?originalMaxWidth:Core.DEFAULTS.paneWidth;
     return Core.boundedNumber(pane.width, settings.paneWidth, 320, originalMaxWidth);
   }
 
@@ -309,11 +314,11 @@
       if(!workspaceId)workspaceId=newId();
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
         schemaVersion:2,workspaceId,settings,
-        closedPanes: closedPanes.map(({url,title,width,newChat})=>({url,title,width,...(newChat?{newChat:true}:{})})),
+        closedPanes: closedPanes.map(({url,title,width,newChat,autoWidth})=>({url,title,width,...(typeof autoWidth==='boolean'?{autoWidth}:{}),...(newChat?{newChat:true}:{})})),
         enabled: state.enabled,
         activeUrl: state.panes.find(p => p.id === state.activeId)?.url || null,
         activeIndex:state.panes.findIndex(p=>p.id===state.activeId), overlayPosition,
-        panes: state.panes.map(p => ({ id:p.id, ...(typeof p.draft==='string'?{draft:p.draft}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
+        panes: state.panes.map(p => ({ id:p.id, ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
       }));
     } catch { setStatus('このタブの状態を保存できませんでした。', true); }
   }
@@ -350,7 +355,7 @@
       .overlay button:hover{background:#e5edf5;border-color:#cad6e1}.overlay .overlay-grip{width:20px;padding:0;cursor:move;touch-action:none}
       .overlay-menu{position:fixed;z-index:2147483647;width:300px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;border:1px solid #aebdcd;border-radius:8px;background:#fff;color:#243b51;padding:12px;font:12px/1.5 system-ui;pointer-events:auto}
       [hidden]{display:none!important}.overlay-menu h3{font-size:13px;margin:0}.overlay-menu .menu-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
-      .overlay-menu .menu-row{display:flex;align-items:center;gap:6px;margin-top:9px}.overlay-menu label{flex:1}.parked-title{flex:1;min-width:0;overflow-wrap:anywhere}.overlay-menu textarea{width:100%;min-height:90px}.overlay-menu h3{margin-top:12px}.overlay-menu button,.overlay-menu input,.overlay-menu select{font:inherit;color:inherit;min-height:30px;border:1px solid #c8d3df;border-radius:5px;background:#f8fafc;padding:4px 7px}.overlay-menu button:hover{background:#e5edf5}.overlay-menu input[type=number]{width:76px}.overlay-menu input[type=checkbox]{min-height:0;accent-color:#347ed5}.overlay-menu select{min-width:0;flex:1;max-width:205px}.overlay-menu :disabled{opacity:.5;cursor:default}.overlay-note{font-size:10px;color:#62748a;margin:8px 0 0}
+      .sidebar-resize{position:fixed;top:0;bottom:0;width:7px;z-index:2147483647;cursor:col-resize;touch-action:none;pointer-events:auto;background:transparent}.sidebar-resize:hover{background:#4c91df66}.sidebar-resize[aria-disabled=true]{cursor:default;pointer-events:none}.overlay-menu .menu-row{display:flex;align-items:center;gap:6px;margin-top:9px}.overlay-menu label{flex:1}.parked-title{flex:1;min-width:0;overflow-wrap:anywhere}.overlay-menu textarea{width:100%;min-height:90px}.overlay-menu h3{margin-top:12px}.overlay-menu button,.overlay-menu input,.overlay-menu select{font:inherit;color:inherit;min-height:30px;border:1px solid #c8d3df;border-radius:5px;background:#f8fafc;padding:4px 7px}.overlay-menu button:hover{background:#e5edf5}.overlay-menu input[type=number]{width:76px}.overlay-menu input[type=checkbox]{min-height:0;accent-color:#347ed5}.overlay-menu select{min-width:0;flex:1;max-width:205px}.overlay-menu :disabled{opacity:.5;cursor:default}.overlay-note{font-size:10px;color:#62748a;margin:8px 0 0}
       .board{position:fixed;inset:0 0 0 auto;z-index:2147483645;display:flex;flex-direction:column;background:#e9eef4;color:#1c3048;font:12px system-ui;pointer-events:auto}
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
       .scroller{flex:1;min-height:0;display:flex;gap:7px;padding:9px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
@@ -377,7 +382,7 @@
     panel = create('section', 'board'); panel.hidden = true; panel.setAttribute('role','region'); panel.setAttribute('aria-label','ChatGPT 横並びワークスペース');
     scroller=create('main','scroller');panel.appendChild(scroller);
     const hintbar=create('div','hintbar');hintbar.hidden=true;hintbar.setAttribute('role','status');flashNode=create('span','flash','ドラッグで列を移動。Alt+←/→でも並べ替えできます。');hintbar.appendChild(flashNode);panel.appendChild(hintbar);
-    shadow.appendChild(panel);makeOverlay();document.documentElement.appendChild(host);
+    shadow.appendChild(panel);makeSidebarResize();makeOverlay();document.documentElement.appendChild(host);
     originalMaxWidth=readOriginalMaxWidth();
     if(Layout&&typeof MutationObserver==='function'){contentLayoutObserver=new MutationObserver(scheduleContentLayout);contentLayoutObserver.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});}
     window.addEventListener('resize',scheduleContentLayout);
@@ -407,7 +412,9 @@
     viewToggle.setAttribute('aria-label',state.enabled?'元の画面を表示':(state.panes.length?'分割表示に戻る':'分割表示を開始'));
     if(!menuControls)return;
     menuControls.add.disabled=!state.enabled;menuControls.url.disabled=!state.enabled;menuControls.width.disabled=!state.enabled||settings.equalizeColumns;menuControls.apply.disabled=menuControls.width.disabled;
-    menuControls.width.value=String(Math.min(settings.paneWidth,originalMaxWidth));menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
+    menuControls.width.value=String(settings.nativePaneWidth?(contentWidthDetected?originalMaxWidth:Core.DEFAULTS.paneWidth):Math.min(settings.paneWidth,originalMaxWidth));menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
+    menuControls.sidebar.value=String(settings.sidebarWidth);menuControls.sidebar.disabled=settings.sidebarLocked;menuControls.sidebarApply.disabled=settings.sidebarLocked;menuControls.sidebarReset.disabled=settings.sidebarLocked;
+    menuControls.sidebarLock.textContent=settings.sidebarLocked?'ロック解除':'ロック';menuControls.sidebarLock.setAttribute('aria-pressed',String(settings.sidebarLocked));
     menuControls.parkedList.replaceChildren();
     const parked=state.panes.filter(p=>!p.visible);
     menuControls.parkedHeading.textContent=`退避中 (${parked.length})`;
@@ -425,6 +432,29 @@
     if(menuControls.historyEntry)menuControls.historyEntry.textContent=`閉じた履歴 (${closedPanes.length})`;
     renderClosedHistory();
     placeOverlay();
+  }
+
+  function resetPaneWidths() {
+    settings.nativePaneWidth=true;settings.paneWidth=Core.DEFAULTS.paneWidth;settings.equalizeColumns=false;
+    for(const p of state.panes)p.autoWidth=true;
+    refreshContentLayout();applyColumnWidths();savePrefs();safeSave();syncOverlay();
+  }
+
+  function setSidebarWidth(value,persist=true) {
+    if(settings.sidebarLocked)return;
+    settings.sidebarWidth=Core.boundedNumber(value,settings.sidebarWidth,180,520);
+    updateGeometry();pinMasterSidebar();syncOverlay();
+    if(persist){savePrefs();safeSave();}
+  }
+
+  function makeSidebarResize() {
+    sidebarHandle=create('div','sidebar-resize');sidebarHandle.setAttribute('role','separator');sidebarHandle.setAttribute('aria-label','左一覧の幅');sidebarHandle.setAttribute('aria-orientation','vertical');sidebarHandle.tabIndex=0;
+    let drag=null;
+    sidebarHandle.addEventListener('pointerdown',e=>{if(e.button!==0||settings.sidebarLocked)return;e.preventDefault();drag={x:e.clientX,width:settings.sidebarWidth};sidebarHandle.setPointerCapture(e.pointerId);});
+    sidebarHandle.addEventListener('pointermove',e=>{if(drag&&!settings.sidebarLocked)setSidebarWidth(drag.width+e.clientX-drag.x,false);});
+    const end=()=>{if(!drag)return;drag=null;savePrefs();safeSave();};sidebarHandle.addEventListener('pointerup',end);sidebarHandle.addEventListener('pointercancel',end);
+    sidebarHandle.addEventListener('keydown',e=>{if(settings.sidebarLocked||!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();setSidebarWidth(settings.sidebarWidth+(e.key==='ArrowRight'?10:-10));});
+    shadow.appendChild(sidebarHandle);
   }
 
   function restoreParkedPane(p) {
@@ -488,7 +518,7 @@
     }
     entry?.root.remove();paneNodes.delete(p.id);
     state.panes=state.panes.filter(x=>x.id!==p.id);
-    if(p.url)closedPanes.unshift({id:newId(),url:p.url,title:p.title,width:p.width,...(p.newChat?{newChat:true}:{})});
+    if(p.url)closedPanes.unshift({id:newId(),url:p.url,title:p.title,width:p.width,...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}),...(p.newChat?{newChat:true}:{})});
     closedPanes=closedPanes.slice(0,200);
     state.activeId=state.panes.find(x=>x.visible)?.id||null;
     syncPaneOrder();markActive();applyColumnWidths();safeSave();syncOverlay();updateFallbackDock();
@@ -505,7 +535,12 @@
     const row=()=>{const e=create('div','menu-row');overlayMenu.appendChild(e);return e;};
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{addNewChat();syncOverlay();}),url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().append(add,url);
     const equalLabel=create('label','','列を等分 '),equal=create('input');equal.type='checkbox';equal.setAttribute('aria-label','列を等分');equal.addEventListener('change',()=>{setEqualize(equal.checked);syncOverlay();});equalLabel.appendChild(equal);row().appendChild(equalLabel);
-    const widthRow=row(),widthLabel=create('label','','列幅 (px)'),width=create('input');width.id='cgww-menu-width';width.type='number';width.min='320';width.max=String(originalMaxWidth);widthLabel.htmlFor=width.id;const apply=button('適用','全列の幅を変更',()=>{if(!width.checkValidity())return;settings.paneWidth=Core.boundedNumber(width.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes)p.width=settings.paneWidth;applyColumnWidths();savePrefs();safeSave();syncOverlay();});widthRow.append(widthLabel,width,apply);
+    const widthRow=row(),widthLabel=create('label','','全列幅 (px)'),width=create('input');width.id='cgww-menu-width';width.type='number';width.min='320';width.max=String(originalMaxWidth);widthLabel.htmlFor=width.id;const apply=button('適用','全列の幅を変更',()=>{if(!width.checkValidity())return;settings.nativePaneWidth=false;settings.paneWidth=Core.boundedNumber(width.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=false;}applyColumnWidths();savePrefs();safeSave();syncOverlay();});const widthReset=button('リセット','全列をChatGPT標準幅に戻す',resetPaneWidths);widthReset.setAttribute('aria-label','全列幅をリセット');widthRow.append(widthLabel,width,apply,widthReset);
+    const sideRow=row(),sidebar=create('input');sidebar.type='number';sidebar.min='180';sidebar.max='520';sidebar.setAttribute('aria-label','左一覧幅 (px)');
+    const sidebarApply=button('適用','左一覧幅を適用',()=>{if(sidebar.checkValidity())setSidebarWidth(sidebar.value);});
+    const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
+    const sidebarLock=button('ロック','左一覧の幅変更をロック・解除',()=>{settings.sidebarLocked=!settings.sidebarLocked;updateGeometry();savePrefs();safeSave();syncOverlay();});sidebarLock.setAttribute('aria-label','左一覧幅のロック');
+    sideRow.append(create('label','','左一覧幅 (px)'),sidebar,sidebarApply);row().append(sidebarReset,sidebarLock);
     const paddingRow=row(),padding=create('input');padding.type='number';padding.min='0';padding.max='12';padding.setAttribute('aria-label','本文左右余白上限 (px)');
     const setPadding=value=>{settings.contentPadding=Core.boundedNumber(value,12,0,12);scheduleContentLayout();savePrefs();safeSave();syncOverlay();};
     paddingRow.append(create('label','','本文左右余白上限 (px)'),padding,button('保存','本文の左右余白を保存',()=>{if(padding.checkValidity())setPadding(padding.value);}),button('リセット','余白を12pxへ戻す',()=>setPadding(12)));
@@ -513,7 +548,7 @@
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,padding,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,padding,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -531,7 +566,7 @@
 
   function applyPreferences(raw) {
     const previous=settings;settings=Core.normalizeSettings(raw);
-    if(previous.paneWidth!==settings.paneWidth)for(const p of state.panes)p.width=settings.paneWidth;
+    if(previous.paneWidth!==settings.paneWidth||previous.nativePaneWidth!==settings.nativePaneWidth)for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=settings.nativePaneWidth;}
     if(previous.hideFrameSidebar!==settings.hideFrameSidebar)paneNodes.forEach(entry=>{if(entry.iframe)applyIframeSidebarRule(entry.iframe);});
     scheduleContentLayout();updateGeometry();ensureMasterSidebar();syncOverlay();safeSave();
   }
@@ -561,6 +596,7 @@
 
   function updateGeometry() {
     if (panel) panel.style.left = `${sidebarWidth()}px`;
+    if(sidebarHandle){sidebarHandle.hidden=!state.enabled;sidebarHandle.style.left=`${sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
     if (fallbackDock) fallbackDock.style.width = `${sidebarWidth()}px`;
     applyColumnWidths();
   }
@@ -568,6 +604,7 @@
   function setEnabled(enabled, restoring=false) {
     state.enabled = Boolean(enabled);
     panel.hidden = !state.enabled;
+    updateGeometry();
     closeOverlay(false);
     if (state.enabled && state.panes.length === 0 && !restoring) {
       const url = Core.chatUrl(location.href);
@@ -584,7 +621,7 @@
   function addNewChat() {
     if(state.panes.length>=200){setStatus('動作保護のため200列が上限です。',true);return false;}
     if(state.panes.filter(p=>p.visible).length>=8&&!confirm('9列以上になります。新しいチャット列を追加しますか？'))return false;
-    const p={id:newId(),url:Core.ORIGIN+'/',newChat:true,title:'新しいチャット',width:settings.paneWidth,visible:true};
+    const p={id:newId(),url:Core.ORIGIN+'/',newChat:true,title:'新しいチャット',width:settings.paneWidth,autoWidth:settings.nativePaneWidth,visible:true};
     // Never deduplicate root URLs: each blank chat owns an independent document.
     state.panes.push(p);state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();
     scroller.scrollLeft=scroller.scrollWidth;setStatus('新しいチャットを右端に追加しました。');return true;
@@ -619,7 +656,7 @@
   }
 
   function emptyPane() {
-    return { id: newId(), url: null, title: '未設定の列', width: settings.paneWidth, visible: true };
+    return { id: newId(), url: null, title: '未設定の列', width: settings.paneWidth, autoWidth:settings.nativePaneWidth, visible: true };
   }
 
   function addEmptyPane() {
@@ -656,7 +693,7 @@
     }
     if (state.panes.length >= 200) { setStatus('動作保護のため200列が上限です。', true); return; }
     if (state.panes.filter(p => p.visible).length >= 8 && !confirm('さらに列を追加しますか？会話ごとにメモリを使用します。')) return;
-    const p = { id: newId(), url, title: Core.normalizeTitle(title), width: settings.paneWidth, visible: true };
+    const p = { id: newId(), url, title: Core.normalizeTitle(title), width: settings.paneWidth, autoWidth:settings.nativePaneWidth, visible: true };
     state.panes.push(p);
     state.activeId = p.id;
     renderPane(p); markActive(); safeSave();
@@ -879,6 +916,7 @@
       event.preventDefault(); resizer.setPointerCapture(event.pointerId);
       const start = event.clientX, initial = getPaneWidth(p);
       const move = e => {
+        p.autoWidth=false;
         p.width = Core.boundedNumber(initial + (e.clientX - start), initial, 320, originalMaxWidth);
         root.style.width = `${getPaneWidth(p)}px`;
       };
@@ -924,7 +962,7 @@
         case 'enable':setEnabled(true);break;
         case 'disable':setEnabled(false);break;
         case 'add':if(!state.enabled)throw Error('横並びを開始してください。');addNewChat();break;
-        case 'width':settings.paneWidth=Core.boundedNumber(message.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes)p.width=settings.paneWidth;applyColumnWidths();savePrefs();safeSave();break;
+        case 'width':settings.nativePaneWidth=false;settings.paneWidth=Core.boundedNumber(message.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=settings.nativePaneWidth;}applyColumnWidths();savePrefs();safeSave();break;
         case 'equal':setEqualize(message.value===true);break;
         case 'addUrl':if(!state.enabled)throw Error('横並びを開始してください。');if(!Core.chatUrl(message.url))throw Error('有効なChatGPT会話URLを指定してください。');assignToActive(message.url,'追加したチャット');break;
         case 'restore':{const p=state.panes.find(p=>p.id===message.paneId&&!p.visible);if(!p)throw Error('復帰する列が見つかりません。');p.visible=true;state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();break;}

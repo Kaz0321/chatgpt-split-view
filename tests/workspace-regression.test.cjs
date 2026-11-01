@@ -119,7 +119,7 @@ test('equal-width calculations cover 1-8 panes, resize, min/cap and hidden-pane 
 
 test('equal-width toggle and repeated resize preserve iframe objects, URLs and draft data',()=>{
   const {hooks}=harness();
-  const panes=[{id:'a',width:620,visible:true},{id:'b',width:500,visible:true},{id:'c',width:440,visible:false}];
+  const panes=[{id:'a',width:620,autoWidth:false,visible:true},{id:'b',width:500,autoWidth:false,visible:true},{id:'c',width:440,autoWidth:false,visible:false}];
   const entries=new Map(panes.map(p=>[p.id,{root:{style:{}},iframe:{src:'https://chatgpt.com/c/fixture'+p.id,draft:'unsent-'+p.id}}]));
   const originals=[...entries.values()].map(e=>e.iframe);
   hooks.setLayout(panes,entries,1400,768);

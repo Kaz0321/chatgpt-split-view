@@ -4,7 +4,7 @@
   const Core = root.CGWWCore || (typeof module !== 'undefined' && module.exports ? require('./core.js') : null);
   const PREF_KEY = 'cgww.v1.preferences';
   const MAX_IMPORT_BYTES = 64 * 1024;
-  const SETTINGS_KEYS = Object.freeze(['contentPadding', 'sidebarWidth', 'paneWidth', 'keepMasterSidebar', 'interceptSidebar', 'hideFrameSidebar', 'equalizeColumns']);
+  const SETTINGS_KEYS = Object.freeze(['sidebarLocked', 'nativePaneWidth', 'contentPadding', 'sidebarWidth', 'paneWidth', 'keepMasterSidebar', 'interceptSidebar', 'hideFrameSidebar', 'equalizeColumns']);
   const FIELD_IDS = Object.freeze({ sidebarWidth: 'sidebar-width', keepMasterSidebar: 'keep-master-sidebar', interceptSidebar: 'intercept-sidebar', hideFrameSidebar: 'hide-frame-sidebar' });
 
   function makeExport(settings) {

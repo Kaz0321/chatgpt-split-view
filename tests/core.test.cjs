@@ -2,6 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const C = require('../extension/core.js');
 
+test('native width migration and lock remain typed and survive workspace restoration',()=>{
+ assert.equal(C.normalizeSettings().nativePaneWidth,true);assert.equal(C.normalizeSettings({paneWidth:620}).nativePaneWidth,true);assert.equal(C.normalizeSettings({paneWidth:500}).nativePaneWidth,false);assert.equal(C.normalizeSettings({sidebarLocked:'true'}).sidebarLocked,false);
+ const p=C.restoreWorkspacePanes([{url:C.ORIGIN+'/',newChat:true,autoWidth:true,width:794,visible:false,draft:'keep'}],()=> 'id')[0];assert.equal(p.autoWidth,true);assert.equal(p.visible,false);assert.equal(p.draft,'keep');
+});
+
 test('only ChatGPT conversation URLs pass', () => {
   assert.equal(C.chatUrl('https://chatgpt.com/c/abcdef12-34'), 'https://chatgpt.com/c/abcdef12-34');
   assert.equal(C.chatUrl('https://chatgpt.com/g/g-name/c/abcdef12?q=private'), 'https://chatgpt.com/g/g-name/c/abcdef12');
@@ -17,7 +22,7 @@ test('only ChatGPT conversation URLs pass', () => {
 
 test('settings are bounded, privacy-preserving and typed', () => {
   assert.deepEqual(C.normalizeSettings({sidebarWidth: -30, paneWidth:99999, interceptSidebar:'true'}), {
-    contentPadding:12, sidebarWidth: 180, paneWidth:1400, interceptSidebar:true, hideFrameSidebar:true, equalizeColumns:false, keepMasterSidebar:true
+    sidebarLocked:false, nativePaneWidth:false, contentPadding:12, sidebarWidth: 180, paneWidth:1400, interceptSidebar:true, hideFrameSidebar:true, equalizeColumns:false, keepMasterSidebar:true
   });
   assert.equal(C.normalizeTitle('<script>Title</script>'), '<script>Title</script>'); // textContent used by renderer, never innerHTML
 });

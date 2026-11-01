@@ -2,6 +2,15 @@ const test=require('node:test'),assert=require('node:assert/strict'),path=requir
 const ROOT=process.env.CGWW_SOURCE||path.join(__dirname,'../extension');
 const L=require(path.join(ROOT,'content-layout.js'));
 const base={boxSizing:'border-box',maxWidth:'768px',paddingLeft:'20px',paddingRight:'20px',borderLeftWidth:'0px',borderRightWidth:'0px'};
+
+test('modern shared wrapper works without legacy message attributes and padding cap is effective',()=>{
+ const f=fixture({unknown:true,style:{maxWidth:'808px'}}),original=f.doc.querySelectorAll;
+ f.doc.querySelectorAll=s=>s==='[class~="max-w-(--thread-body-max-width)"]'?[f.col]:original(s);
+ for(const gutter of [0,6,12]){const m=L.inspect(f.doc,{compact:true,gutter});assert.equal(m.detected,true);assert.equal(m.columns[0].contentMax,768);assert.equal(m.columns[0].paddingLeft,gutter);assert.equal(m.columns[0].paddingRight,gutter);assert.equal(m.columns[0].columnMax,768+gutter*2);}
+});
+test('parent native content cap prevents responsive iframe cap shrinking text while narrow panes can wrap',()=>{
+ const f=fixture({style:{maxWidth:'712px'}});const m=L.inspect(f.doc,{compact:true,gutter:6,contentMax:768});assert.equal(m.columns[0].contentMax,768);assert.equal(m.columns[0].columnMax,780);L.apply(f.doc,m);assert.match(f.doc.styles[0].textContent,/width:100%!important;min-width:0!important;max-width:780px/);
+});
 function fixture({style={},scrollbar=0,inset=0,unsafe=false,unknown=false}={}){
  class N{
   constructor(tag='DIV',s={}){this.tagName=tag;this.baseStyle={maxWidth:'none',...s};this.attrs={};this.parentElement=null;this.textContent='';this.writes=0;}
