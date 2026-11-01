@@ -1,0 +1,7 @@
+# v0.8.4 verification
+
+- 155 Node tests pass, including direct action ordering outside the closed menu, adding exactly one new chat from original mode, visibility action labels, padding save/reset/range validation and preservation of unrelated preferences. Existing width/lock/draft/park/close regressions pass.
+- Edge local fixture uses extension workspace/options sources with an origin and Chrome-storage adapter. Enter on the direct new-chat button creates one pane while the menu remains closed. Space on the direct sidebar toggle hides the sidebar and updates its label/ARIA to show. Menu still includes direct parked list, width/reset/lock and history, and no longer contains the padding field.
+- Clicking Other settings opens the options page. Existing 6px padding loads; saving 0 updates the embedded column's computed padding to 0px; resetting and saving updates it to 12px without reloading the workspace.
+- A 320x568 iframe fixture (only top-level guard adapted for this test) measures floating x=4, width=300, height=66. Menu/new-chat/sidebar actions share the first row; original-view action wraps. All button rectangles stay inside the viewport without overlap. ArrowDown movement clamps to bottom=552. Menu above it measures left=8/right=308/top=95/bottom=480; Escape closes and returns focus to Menu.
+- Browser viewport override did not change the inspected tab, so the narrow test used the measured iframe viewport instead; override was reset. Applied UI QA used local synthetic pages, not an updated installed extension on authenticated ChatGPT.
