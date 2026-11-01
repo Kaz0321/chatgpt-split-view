@@ -82,3 +82,12 @@ test('iframe-realm new-chat button is recognized without parent Element rejectio
 test('Escape and outside pointer dismissal close only the menu and permit reopening',()=>{
  const h=harness();h.a.makeOverlay();const u=h.a.ui();u.launcher.emit('click');u.overlayMenu.parentElement.emit('keydown',{key:'Escape'});assert(u.overlayMenu.hidden);u.launcher.emit('click');for(const fn of h.doc.listeners.pointerdown)fn({composedPath:()=>[]});assert(u.overlayMenu.hidden);u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);assert.equal(h.a.state().enabled,false);
 });
+
+test('parked titles and restore buttons are directly present without nested disclosure',()=>{
+ const h=harness(),p={id:'parked',title:'Named parked conversation',url:Core.ORIGIN+'/',newChat:true,width:480,visible:false};h.a.init([p]);h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();
+ assert.equal(u.menuControls.parkedList.hidden,false);assert.equal(u.menuControls.parkedList.children[0].children[0].textContent,p.title);assert.equal(u.menuControls.parkedEntry,undefined);
+ u.menuControls.parkedList.children[0].children[1].emit('click');assert.equal(p.visible,true);assert.equal(h.a.state().panes[0],p);assert.equal(p.width,480);
+});
+test('restoring empty or all-parked workspace never creates an extra conversation',()=>{
+ const h=harness();h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,0);const p={id:'parked',visible:false};h.a.init([p]);h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,1);assert.equal(p.visible,false);
+});

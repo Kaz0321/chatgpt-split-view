@@ -113,6 +113,19 @@
     };
   }
 
+  // Session-only restoration: drafts never enter settings exports or closed history.
+  function restoreWorkspacePanes(raw,newId) {
+    if(!Array.isArray(raw))return [];
+    const ids=new Set(),result=[];
+    for(const item of raw.slice(0,200)){
+      const pane=normalizeSessionPanes([item])[0];if(!pane)continue;
+      const candidate=typeof item.id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(item.id)?item.id:null;
+      const id=candidate&&!ids.has(candidate)?candidate:newId();ids.add(id);
+      result.push({...pane,id,...(typeof item.draft==='string'?{draft:item.draft}:{})});
+    }
+    return result;
+  }
+
   const PANE_DRAG_TYPE = 'application/x-cgww-pane-id';
   function isPaneReorderDrag(types) {
     const values=Array.from(types||[],value=>String(value).toLowerCase());
@@ -126,7 +139,7 @@
     result.splice(index+(after?1:0),0,source);return result;
   }
 
-  const api = { PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
+  const api = { restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CGWWCore = api;
 })(globalThis);

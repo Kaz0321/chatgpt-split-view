@@ -1,3 +1,11 @@
+# v0.8.1 検証（2026-11-01）
+
+146 Node tests PASS（旧版134 + 新規12）。構文/manifest/バージョン、ZIP生成・整合性を検査。
+
+Edgeで実ページ再読み込みを実施する合成fixtureにより、全列退避、stable IDと順序、個別幅、余白設定、閉じた履歴、workspace ID、設定内の直接一覧、textarea/リッチ入力欄の改行付き下書き復元、二度目の再読み込みで重複なしを確認。別ブラウザタブは空の独立状態から開始し、元タブへ干渉しないことを確認。旧形式移行・重複ID・他入力欄の除外・既存入力競合・遅延入力欄・close時の破棄はNodeで確認。
+
+実ChatGPTページでは本文や入力内容を取得せず、入力欄がIDなしのdiv.ProseMirror[role=textbox][contenteditable=true]であることを読み取り確認。ChatGPT内での送信/添付/実下書き編集は実施していません。合成fixtureは同一オリジンframe URLとChrome storageを置換しています。実サービスのeditor transaction・hydrationの将来変更まで保証しません。添付と生成処理は復元対象外、browser終了/保存領域削除/容量不足も完全復元を保証しません。
+
 # v0.8.0 検証追記（2026-11-01）
 
 独立実装のNodeテスト134件PASS。manifest/構文/バージョン整合性PASS。先行パッチの133件結果は流用していません。
