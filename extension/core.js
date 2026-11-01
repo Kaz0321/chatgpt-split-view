@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   const ORIGIN = 'https://chatgpt.com';
-  const DEFAULTS = Object.freeze({ contentPadding: 12, sidebarWidth: 276, paneWidth: 620, interceptSidebar: true, hideFrameSidebar: true, equalizeColumns: false, keepMasterSidebar: true });
+  const DEFAULTS = Object.freeze({ contentPadding: 12, sidebarWidth: 276, sidebarLocked: false, nativePaneWidth: true, paneWidth: 794, interceptSidebar: true, hideFrameSidebar: true, equalizeColumns: false, keepMasterSidebar: true });
   const SCHEMA_VERSION = 1;
 
   function boundedNumber(value, fallback, min, max) {
@@ -13,6 +13,8 @@
   function normalizeSettings(settings = {}) {
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) settings = {};
     return {
+      sidebarLocked: typeof settings.sidebarLocked==='boolean'?settings.sidebarLocked:false,
+      nativePaneWidth: typeof settings.nativePaneWidth==='boolean'?settings.nativePaneWidth:(settings.paneWidth==null||settings.paneWidth===620),
       contentPadding: boundedNumber(settings.contentPadding, DEFAULTS.contentPadding, 0, 12),
       sidebarWidth: boundedNumber(settings.sidebarWidth, DEFAULTS.sidebarWidth, 180, 520),
       paneWidth: boundedNumber(settings.paneWidth, DEFAULTS.paneWidth, 320, 1400),
@@ -82,7 +84,7 @@
         url,
         title: normalizeTitle(p.title),
         width: boundedNumber(p.width, DEFAULTS.paneWidth, 320, 1400),
-        visible: p.visible !== false
+        ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), visible: p.visible !== false
       });
       if (result.length >= max) break;
     }
@@ -98,7 +100,7 @@
       const url = p.url == null ? null : (fresh || chatUrl(p.url));
       if (p.url != null && !url) continue;
       result.push({ url, ...(fresh ? {newChat:true} : {}), title: normalizeTitle(p.title, fresh ? '新しいチャット' : (url ? 'ChatGPT チャット' : '未設定の列')),
-        width: boundedNumber(p.width, DEFAULTS.paneWidth, 320, 1400), visible: p.visible !== false });
+        width: boundedNumber(p.width, DEFAULTS.paneWidth, 320, 1400), ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), visible: p.visible !== false });
     }
     return result;
   }

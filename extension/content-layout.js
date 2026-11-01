@@ -26,14 +26,22 @@
   }
   function findColumns(doc,win){
     const found=[];
-    const seeds=[...doc.querySelectorAll('[data-message-author-role="assistant"], [data-message-author-role="user"], [data-testid^="conversation-turn-"]')].slice(0,12);
+    // Current ChatGPT uses this shared body wrapper for transcript and composer,
+    // including local Work conversations without data-message-author-role.
+    for(const node of doc.querySelectorAll('[class~="max-w-(--thread-body-max-width)"]')){
+      if(node.closest('pre,table,aside,nav'))continue;
+      const geometry=columnGeometry(win.getComputedStyle(node));
+      if(geometry)found.push({node,geometry});
+    }
+    const seeds=[...doc.querySelectorAll('[data-message-author-role="assistant"], [data-message-author-role="user"], [data-testid^="conversation-turn-"], #prompt-textarea, .ProseMirror[role="textbox"][contenteditable="true"]')].slice(0,16);
     for(const seed of seeds){
-      if(seed.closest('pre,table,textarea,input,[contenteditable="true"]'))continue;
+      const composer=seed.matches('#prompt-textarea, .ProseMirror[role="textbox"][contenteditable="true"]');
+      if(!composer&&seed.closest('pre,table,textarea,input,[contenteditable="true"]'))continue;
       let node=seed.parentElement;
-      for(let depth=0;node&&depth<10;depth++,node=node.parentElement){
+      for(let depth=0;node&&depth<60;depth++,node=node.parentElement){
         if(node===doc.body||node===doc.documentElement)break;
         if(node.matches('pre,table,textarea,input,button,aside,nav'))break;
-        const style=win.getComputedStyle(node),geometry=columnGeometry(style);
+        const geometry=columnGeometry(win.getComputedStyle(node));
         if(geometry){if(!found.some(x=>x.node===node))found.push({node,geometry});break;}
       }
     }
@@ -53,7 +61,7 @@
     }
     return {insets:sum,scrollbars};
   }
-  function inspect(doc,{compact=false,gutter=GUTTER,scrollbarAllowance=0,frameBorder=2}={}){
+  function inspect(doc,{compact=false,gutter=GUTTER,contentMax,scrollbarAllowance=0,frameBorder=2}={}){
     const win=doc?.defaultView;
     if(!win?.getComputedStyle||!doc?.documentElement||!doc.querySelectorAll)return {detected:false,outerMax:1400,columns:[],scrollbarAllowance};
     // Temporarily untag our own rules, synchronously, so responsive native CSS is
@@ -65,6 +73,10 @@
     try{
       columns=findColumns(doc,win).map(({node})=>{
         const geometry=columnGeometry(win.getComputedStyle(node),compact,gutter);
+        if(compact&&Number.isFinite(contentMax)&&contentMax>=320&&contentMax<=1400){
+          geometry.contentMax=contentMax;
+          geometry.columnMax=contentMax+geometry.paddingLeft+geometry.paddingRight+geometry.border;
+        }
         const ancestor=ancestorInsets(node,doc,win);
         return {node,...geometry,ancestorInsets:ancestor.insets,ancestorScrollbars:ancestor.scrollbars};
       });

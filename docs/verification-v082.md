@@ -1,0 +1,9 @@
+# v0.8.2 verification
+
+- Node: 151 tests, including native-width reset/migration, parent content cap, modern wrappers, sidebar drag/lock, and the existing session/draft/park/close regressions.
+- Live ChatGPT read-only DOM observation (2026-11-01): current home and conversation wrappers use `max-w-(--thread-body-max-width)`; computed border-box maximum 808px, left/right padding 20px, content maximum 768px. Current sidebar uses `.app-shell-left-panel` / `#app-shell-sidebar`. Legacy message selectors alone missed these wrappers.
+- The automatic outer width is measured content + selected padding + measured scrollbar allowance + pane borders. It is not a fixed 814px constant. Missing content measurements use a 794px fallback (768 + 24 + 2), without claiming that value was measured.
+- Edge rendered fixture using the extension sources and the observed wrapper/sidebar structure: padding 0/6/12 produced computed left/right padding and measured content offsets of exactly 0/6/12px; content stayed 768px. This fixture used a 30px scrollbar gutter and outer widths 800/812/824px. Manual 460px width and all-column reset passed without replacing the iframe. Embedded modern sidebar was hidden.
+- Actual pointer drag changed left width 276 to 350px. Lock plus page reload restored 350px and a disabled splitter without duplicate panes. Scripted fixture checks verified locked settings edits are ignored and unlocked reset returns 276px; Node tests also cover locked pointer and keyboard input.
+
+The live ChatGPT page was inspected without sending or deleting conversations. Applied layout tests used a local synthetic page, not a newly installed extension on the authenticated live page. Browser installation was not changed. Existing draft limitations (attachments, generation state, browser-session termination) still apply.

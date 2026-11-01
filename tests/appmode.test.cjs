@@ -13,9 +13,9 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`globalThis.api={newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,
-    init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller={clientWidth:724,scrollWidth:2400};renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};},
-    enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {overlay,overlayMenu,launcher,viewToggle,menuControls};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`globalThis.api={newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+    init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller={clientWidth:724,scrollWidth:2400};renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
+    enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
 }
 function control(h,tag='a',attrs={}){const e=new h.Element(tag);e.href='https://chatgpt.com/?noauth_recent_chat_failed=1';e.setAttribute('aria-label','新しいチャット');for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;}
@@ -90,4 +90,15 @@ test('parked titles and restore buttons are directly present without nested disc
 });
 test('restoring empty or all-parked workspace never creates an extra conversation',()=>{
  const h=harness();h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,0);const p={id:'parked',visible:false};h.a.init([p]);h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,1);assert.equal(p.visible,false);
+});
+
+test('native default and full reset use measured outer width while manual width stays independent',()=>{
+ const h=harness();h.a.enabled(true);h.a.addNewChat();h.a.nativeCap(814);const p=h.a.state().panes[0];assert.equal(h.a.getPaneWidth(p),814);p.autoWidth=false;p.width=450;assert.equal(h.a.getPaneWidth(p),450);h.a.resetPaneWidths();assert.equal(h.a.getPaneWidth(p),814);assert.equal(p.autoWidth,true);assert.equal(h.a.settings().equalizeColumns,false);
+});
+test('sidebar drag, bounds and persisted lock prevent accidental width edits',()=>{
+ const h=harness();h.a.makeOverlay();h.a.makeSidebarResize();h.a.enabled(true);const ui=h.a.ui(),handle=ui.sidebarHandle;
+ handle.emit('pointerdown',{clientX:276,pointerId:1});handle.emit('pointermove',{clientX:380});handle.emit('pointerup');assert.equal(h.a.settings().sidebarWidth,380);assert.equal(h.saves.at(-1).settings.sidebarWidth,380);
+ ui.menuControls.sidebarLock.emit('click');assert.equal(h.a.settings().sidebarLocked,true);assert.equal(ui.menuControls.sidebar.disabled,true);assert.equal(ui.menuControls.sidebarReset.disabled,true);
+ handle.emit('pointerdown',{clientX:380,pointerId:2});handle.emit('pointermove',{clientX:500});handle.emit('pointerup');handle.emit('keydown',{key:'ArrowRight'});h.a.setSidebarWidth(500);assert.equal(h.a.settings().sidebarWidth,380);
+ ui.menuControls.sidebarLock.emit('click');h.a.setSidebarWidth(900);assert.equal(h.a.settings().sidebarWidth,520);ui.menuControls.sidebarReset.emit('click');assert.equal(h.a.settings().sidebarWidth,Core.DEFAULTS.sidebarWidth);
 });
