@@ -116,7 +116,7 @@
     };
   }
 
-  // Session-only restoration: drafts never enter settings exports or closed history.
+  // Workspace restoration: drafts never enter settings exports or closed history.
   function restoreWorkspacePanes(raw,newId) {
     if(!Array.isArray(raw))return [];
     const ids=new Set(),result=[];
