@@ -120,6 +120,7 @@
   }
 
   function sidebarWidth() {
+    if(!settings.sidebarVisible)return 0;
     return Math.min(settings.sidebarWidth,Math.max(120,(window.innerWidth||1024)-320));
   }
 
@@ -129,7 +130,13 @@
   }
 
   function pinMasterSidebar() {
-    if(!state.enabled||!settings.keepMasterSidebar){releaseMasterSidebar();return;}
+    if(!state.enabled){releaseMasterSidebar();return;}
+    if(!settings.sidebarVisible){
+      if(!masterStyle){masterStyle=document.createElement('style');masterStyle.id='cgww-master-pin';document.documentElement.appendChild(masterStyle);}
+      const css=SIDE_NAV+'{display:none!important;visibility:hidden!important;pointer-events:none!important}';
+      if(masterStyle.textContent!==css)masterStyle.textContent=css;return;
+    }
+    if(!settings.keepMasterSidebar){releaseMasterSidebar();return;}
     const candidates=Array.from(document.querySelectorAll('.app-shell-left-panel, #app-shell-sidebar, #ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]'));
     const native=candidates.find(el=>el.childElementCount>0);
     if(!native){if(pinnedMaster&&!pinnedMaster.isConnected)releaseMasterSidebar();return;}
@@ -140,7 +147,7 @@
   }
 
   function tryExpandNativeSidebar(userInitiated = false) {
-    if (!state.enabled || !settings.keepMasterSidebar || measureNativeSidebar()) {pendingOpener=null;return true;}
+    if (!state.enabled || !settings.sidebarVisible || !settings.keepMasterSidebar || measureNativeSidebar()) {pendingOpener=null;return true;}
     const opener=findNativeOpener();
     // One automatic attempt per visible opener episode. No polling/double clicks.
     if(!opener||(!userInitiated&&pendingOpener===opener))return false;
@@ -237,7 +244,7 @@
 
   function updateFallbackDock() {
     if (!fallbackDock) return;
-    const needsFallback = state.enabled && settings.keepMasterSidebar && !measureNativeSidebar();
+    const needsFallback = state.enabled && settings.sidebarVisible && settings.keepMasterSidebar && !measureNativeSidebar();
     fallbackDock.hidden = !needsFallback;
     if (!needsFallback || !fallbackList) return;
     const signature=JSON.stringify(state.panes.map(p=>[p.id,p.title,p.visible]));
@@ -277,6 +284,7 @@
   }
 
   function ensureMasterSidebar() {
+    if(state.enabled&&!settings.sidebarVisible){pinMasterSidebar();updateGeometry();updateFallbackDock();return;}
     if(!state.enabled||!settings.keepMasterSidebar){releaseMasterSidebar();updateFallbackDock();return;}
     pinMasterSidebar();
     if(!measureNativeSidebar())tryExpandNativeSidebar();else pendingOpener=null;
@@ -413,6 +421,7 @@
     if(!menuControls)return;
     menuControls.add.disabled=!state.enabled;menuControls.url.disabled=!state.enabled;menuControls.width.disabled=!state.enabled||settings.equalizeColumns;menuControls.apply.disabled=menuControls.width.disabled;
     menuControls.width.value=String(settings.nativePaneWidth?(contentWidthDetected?originalMaxWidth:Core.DEFAULTS.paneWidth):Math.min(settings.paneWidth,originalMaxWidth));menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
+    menuControls.sidebarVisible.textContent=settings.sidebarVisible?'左一覧を隠す':'左一覧を表示';menuControls.sidebarVisible.setAttribute('aria-pressed',String(settings.sidebarVisible));
     menuControls.sidebar.value=String(settings.sidebarWidth);menuControls.sidebar.disabled=settings.sidebarLocked;menuControls.sidebarApply.disabled=settings.sidebarLocked;menuControls.sidebarReset.disabled=settings.sidebarLocked;
     menuControls.sidebarLock.textContent=settings.sidebarLocked?'ロック解除':'ロック';menuControls.sidebarLock.setAttribute('aria-pressed',String(settings.sidebarLocked));
     menuControls.parkedList.replaceChildren();
@@ -438,6 +447,10 @@
     settings.nativePaneWidth=true;settings.paneWidth=Core.DEFAULTS.paneWidth;settings.equalizeColumns=false;
     for(const p of state.panes)p.autoWidth=true;
     refreshContentLayout();applyColumnWidths();savePrefs();safeSave();syncOverlay();
+  }
+
+  function toggleSidebar() {
+    settings.sidebarVisible=!settings.sidebarVisible;ensureMasterSidebar();updateGeometry();savePrefs();safeSave();syncOverlay();
   }
 
   function setSidebarWidth(value,persist=true) {
@@ -536,6 +549,7 @@
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{addNewChat();syncOverlay();}),url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().append(add,url);
     const equalLabel=create('label','','列を等分 '),equal=create('input');equal.type='checkbox';equal.setAttribute('aria-label','列を等分');equal.addEventListener('change',()=>{setEqualize(equal.checked);syncOverlay();});equalLabel.appendChild(equal);row().appendChild(equalLabel);
     const widthRow=row(),widthLabel=create('label','','全列幅 (px)'),width=create('input');width.id='cgww-menu-width';width.type='number';width.min='320';width.max=String(originalMaxWidth);widthLabel.htmlFor=width.id;const apply=button('適用','全列の幅を変更',()=>{if(!width.checkValidity())return;settings.nativePaneWidth=false;settings.paneWidth=Core.boundedNumber(width.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=false;}applyColumnWidths();savePrefs();safeSave();syncOverlay();});const widthReset=button('リセット','全列をChatGPT標準幅に戻す',resetPaneWidths);widthReset.setAttribute('aria-label','全列幅をリセット');widthRow.append(widthLabel,width,apply,widthReset);
+    const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar);sidebarVisible.setAttribute('aria-label','左一覧の表示切替');row().appendChild(sidebarVisible);
     const sideRow=row(),sidebar=create('input');sidebar.type='number';sidebar.min='180';sidebar.max='520';sidebar.setAttribute('aria-label','左一覧幅 (px)');
     const sidebarApply=button('適用','左一覧幅を適用',()=>{if(sidebar.checkValidity())setSidebarWidth(sidebar.value);});
     const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
@@ -548,7 +562,7 @@
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,padding,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={close,add,url,width,apply,equal,padding,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -596,7 +610,7 @@
 
   function updateGeometry() {
     if (panel) panel.style.left = `${sidebarWidth()}px`;
-    if(sidebarHandle){sidebarHandle.hidden=!state.enabled;sidebarHandle.style.left=`${sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
+    if(sidebarHandle){sidebarHandle.hidden=!state.enabled||!settings.sidebarVisible;sidebarHandle.style.left=`${sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
     if (fallbackDock) fallbackDock.style.width = `${sidebarWidth()}px`;
     applyColumnWidths();
   }
