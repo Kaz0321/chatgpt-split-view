@@ -51,6 +51,21 @@
     /* The hidden navigation's divider belongs to the adjacent main surface.
        Keep this inside the iframe-only, hideFrameSidebar stylesheet. */
     main[class*="MainContentLeftBorder-"] { border-left-width: 0 !important; }
+    /* Modern app-shell paints the rail separately from the hidden aside:
+       a workspace ::before and a transparent PageSurface with a shadow. */
+    [data-app-shell-frame] {
+      --app-shell-navigation-rail-width: 0px !important;
+      --app-shell-left-panel-width: 0px !important;
+      --app-shell-animated-left-panel-width: 0px !important;
+    }
+    [data-app-shell-workspace]::before {
+      inset-inline-start: 0 !important;
+      border-start-start-radius: 0 !important;
+      border-end-start-radius: 0 !important;
+    }
+    [data-app-shell-workspace] > [class*="PageSurface-"] {
+      display: none !important;
+    }
   `;
 
   function newId() {
