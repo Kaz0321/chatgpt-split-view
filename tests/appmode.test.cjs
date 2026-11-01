@@ -13,7 +13,7 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`globalThis.api={newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`globalThis.api={newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller={clientWidth:724,scrollWidth:2400};renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
@@ -97,8 +97,14 @@ test('native default and full reset use measured outer width while manual width 
 });
 test('sidebar drag, bounds and persisted lock prevent accidental width edits',()=>{
  const h=harness();h.a.makeOverlay();h.a.makeSidebarResize();h.a.enabled(true);const ui=h.a.ui(),handle=ui.sidebarHandle;
- handle.emit('pointerdown',{clientX:276,pointerId:1});handle.emit('pointermove',{clientX:380});handle.emit('pointerup');assert.equal(h.a.settings().sidebarWidth,380);assert.equal(h.saves.at(-1).settings.sidebarWidth,380);
+ handle.emit('pointerdown',{clientX:348,pointerId:1});handle.emit('pointermove',{clientX:380});handle.emit('pointerup');assert.equal(h.a.settings().sidebarWidth,380);assert.equal(h.saves.at(-1).settings.sidebarWidth,380);
  ui.menuControls.sidebarLock.emit('click');assert.equal(h.a.settings().sidebarLocked,true);assert.equal(ui.menuControls.sidebar.disabled,true);assert.equal(ui.menuControls.sidebarReset.disabled,true);
  handle.emit('pointerdown',{clientX:380,pointerId:2});handle.emit('pointermove',{clientX:500});handle.emit('pointerup');handle.emit('keydown',{key:'ArrowRight'});h.a.setSidebarWidth(500);assert.equal(h.a.settings().sidebarWidth,380);
  ui.menuControls.sidebarLock.emit('click');h.a.setSidebarWidth(900);assert.equal(h.a.settings().sidebarWidth,520);ui.menuControls.sidebarReset.emit('click');assert.equal(h.a.settings().sidebarWidth,Core.DEFAULTS.sidebarWidth);
+});
+
+test('hidden sidebar releases all width and restores width and lock with all panes parked',()=>{
+ const h=harness();h.a.makeOverlay();h.a.makeSidebarResize();h.a.enabled(true);h.a.init([{id:'park',visible:false,width:450}]);h.a.prefs({sidebarWidth:380,sidebarLocked:true});
+ h.a.toggleSidebar();assert.equal(h.a.sidebarWidth(),0);assert.equal(h.a.settings().sidebarWidth,380);assert.equal(h.a.settings().sidebarLocked,true);assert.equal(h.saves.at(-1).settings.sidebarVisible,false);assert.equal(h.a.ui().sidebarHandle.hidden,true);assert.equal(h.a.ui().overlay.hidden,false);
+ h.a.toggleSidebar();assert.equal(h.a.sidebarWidth(),380);assert.equal(h.a.settings().sidebarLocked,true);assert.equal(h.a.state().panes.length,1);assert.equal(h.a.state().panes[0].visible,false);
 });

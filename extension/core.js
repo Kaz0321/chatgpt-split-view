@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   const ORIGIN = 'https://chatgpt.com';
-  const DEFAULTS = Object.freeze({ contentPadding: 12, sidebarWidth: 276, sidebarLocked: false, nativePaneWidth: true, paneWidth: 794, interceptSidebar: true, hideFrameSidebar: true, equalizeColumns: false, keepMasterSidebar: true });
+  const DEFAULTS = Object.freeze({ contentPadding: 12, sidebarWidth: 348, sidebarVisible: true, sidebarLocked: false, nativePaneWidth: true, paneWidth: 794, interceptSidebar: true, hideFrameSidebar: true, equalizeColumns: false, keepMasterSidebar: true });
   const SCHEMA_VERSION = 1;
 
   function boundedNumber(value, fallback, min, max) {
@@ -13,6 +13,7 @@
   function normalizeSettings(settings = {}) {
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) settings = {};
     return {
+      sidebarVisible: typeof settings.sidebarVisible==='boolean'?settings.sidebarVisible:true,
       sidebarLocked: typeof settings.sidebarLocked==='boolean'?settings.sidebarLocked:false,
       nativePaneWidth: typeof settings.nativePaneWidth==='boolean'?settings.nativePaneWidth:(settings.paneWidth==null||settings.paneWidth===620),
       contentPadding: boundedNumber(settings.contentPadding, DEFAULTS.contentPadding, 0, 12),
