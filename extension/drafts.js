@@ -52,6 +52,7 @@
       if(!pane.draft){done=true;return;}
       if(text(el)){
         done=true;conflict=text(el)!==pane.draft;
+        if(conflict){pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];pane.draft=text(el);save();}
         if(conflict)report('既存の入力を上書きせず、保存した下書きを保持しています。');
         return;
       }
@@ -59,15 +60,18 @@
       try{done=restore(el,pane.draft);if(!done){done=true;conflict=true;report('この入力欄へ自動復元できません。保存した下書きは設定メニューで確認できます。');}}
       catch{done=true;conflict=true;report('下書きの自動復元に失敗しました。保存した下書きは設定メニューで確認できます。');}
       finally{restoring=false;}
+      if(conflict){pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft].filter(Boolean))];pane.draft=text(el);save();}
     };
     const capture=()=>{
       attempt();
       const el=composer(doc);
-      if(!el||restoring||!done||conflict)return;
+      if(!el||restoring||!done)return;
+      if(conflict&&pane.draft&&text(el)!==pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
       pane.draft=text(el);save();
     };
     const input=event=>{
       const el=composer(doc);if(!el||restoring||!(event.target===el||el.contains?.(event.target)))return;
+      if(conflict&&pane.draft&&text(el)!==pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
       current=el;done=true;conflict=false;pane.draft=text(el);save();
     };
     doc.addEventListener('input',input,true);

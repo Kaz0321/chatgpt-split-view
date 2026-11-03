@@ -1,0 +1,16 @@
+# v0.8.9 recovery safeguards
+
+- Composer conflicts retain both the current input (`draft`) and distinct saved alternatives (`draftBackups`). Backups survive subsequent input, session/durable serialization and reload; compare fields are read-only, offer copy selection, and remove a backup only through its explicit discard action. Settings exports and closed history still exclude text.
+- Failed or timed-out writes keep the newest pending snapshot. A persistent unsaved/retry control remains visible; retry reacquires the writer when needed. Concurrent edits supersede older pending snapshots. Requests time out after 10 seconds, while token/sequence checks remain in the background store.
+- Switching or starting a new workspace asks for confirmation with cancellation and attachment/generation limitations, captures current text, awaits successful durable saves, reads the target, captures edits made during the read, and awaits a final save before reload. Save/read/reload failures keep the current workspace; interrupted reload rolls the session back.
+- Closing has no confirmation and destroys the iframe immediately. Only the most recently closed pane has a 30-second in-memory undo record, including supported text and conflict backups. Reload/navigation or expiry removes that undo opportunity. History remains metadata-only. Undo reuses an already-open matching conversation and retains recovered text as alternatives rather than overwriting its input.
+- Automatic restoration without a tab session shows a persistent notice with a new-workspace action. The settings menu also offers new workspace. Full history restoration explains the 200-column limit and that parking does not reduce the count.
+- README now consistently describes same-profile, successful local-storage restoration after browser exit; no cross-device synchronization or attachment/in-flight-generation restoration is promised.
+
+Validation: 185 Node tests pass, including conflict editing/serialization, failed save with newer edits, missing callback timeout/retry, switch cancellation/save failure/missing target, edits during switching, interrupted reload, new workspace, immediate resource disposal, undo/expiry and restore limit. Existing v0.8.8 identity, parked frame, lifecycle and persistence tests pass. Syntax/manifest and deterministic package checks pass.
+
+In-app Chromium fixture: compared native input with saved conflicting text, edited current text, simulated failed saves and retry/recovery, closed without confirmation and restored the pane. After undo into a populated native composer, edited text remained available as a protected alternative. Normal user tabs and installed extension were untouched.
+
+Limitation: browser interaction with the native workspace-switch confirm dialog timed out (`Input.dispatchMouseEvent`, then `Emulation.setFocusEmulationEnabled`); getJsDialog returned undefined. The browser cancel/success flow was not completed. Its logic and interrupted paths were tested with controlled confirmation/storage/reload doubles. Authenticated live ChatGPT and an installed-extension update remain untested.
+
+Test-tab cleanup also timed out with Emulation.setFocusEmulationEnabled; a subsequent inventory still listed the isolated recovery QA tab. No ordinary user tabs were closed.

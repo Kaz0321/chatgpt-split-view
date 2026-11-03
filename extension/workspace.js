@@ -11,6 +11,7 @@
   const Drafts = window.CGWWDrafts;
   let workspaceId = null;
   let initializing=false,initialized=false,restoringWorkspace=false,durableToken=null,saveSequence=0,pendingSnapshot=null,saveInFlight=false;
+  let savePromise=null,saveProblem=false,saveBadge,undoButton,restoreBadge,autoRestored=false,lastClosed=null,undoTimer=null,switching=false;
   const SESSION_KEY = 'cgww.v1.workspace';
   const PREF_KEY = 'cgww.v1.preferences';
   let settings = Core.normalizeSettings();
@@ -346,29 +347,66 @@
         enabled: state.enabled,
         activeUrl: state.panes.find(p => p.id === state.activeId)?.url || null,
         activeIndex:state.panes.findIndex(p=>p.id===state.activeId), overlayPosition,
-        panes: state.panes.map(p => ({ id:p.id, ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
+        panes: state.panes.map(p => ({ id:p.id, ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), ...(p.draftBackups?.length?{draftBackups:[...p.draftBackups]}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
       };
       try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(snapshot));}
       catch{setStatus('このタブ内の保存に失敗しました。再起動用の保存は継続します。',true);}
-      if(durableToken){pendingSnapshot=snapshot;void flushWorkspace();}
+      pendingSnapshot=snapshot;if(durableToken)void flushWorkspace();else{saveProblem=true;updateRecoveryUI();}
     } catch { setStatus('このタブの状態を保存できませんでした。', true); }
   }
 
   function durableRequest(message) {
     return new Promise((resolve,reject)=>{
       if(!chrome.runtime?.sendMessage){reject(Error('Storage unavailable'));return;}
+      const timeout=typeof setTimeout==='function'?setTimeout(()=>reject(Error('Storage timeout')),10000):null;
       chrome.runtime.sendMessage({type:'CGWW_WORKSPACE',...message},result=>{
+        if(timeout!==null)clearTimeout(timeout);
         if(chrome.runtime.lastError||!result?.ok)reject(Error('Storage unavailable'));else resolve(result);
       });
     });
   }
 
-  async function flushWorkspace() {
-    if(saveInFlight||!durableToken)return;
-    saveInFlight=true;
-    try{while(pendingSnapshot){const snapshot=pendingSnapshot;pendingSnapshot=null;await durableRequest({action:'save',id:workspaceId,token:durableToken,sequence:++saveSequence,snapshot});}}
-    catch{pendingSnapshot=null;setStatus('ブラウザ再起動用の保存に失敗しました。保存容量や拡張の状態を確認してください。',true);}
-    finally{saveInFlight=false;}
+  function updateRecoveryUI() {
+    if(saveBadge){saveBadge.hidden=!saveProblem&&!pendingSnapshot&&!saveInFlight;saveBadge.textContent=saveProblem?'未保存・再試行':'保存中…';saveBadge.disabled=saveInFlight;}
+    if(undoButton)undoButton.hidden=!lastClosed||Date.now()>lastClosed.expires;
+    if(restoreBadge)restoreBadge.hidden=!autoRestored;
+  }
+
+  function flushWorkspace() {
+    if(savePromise)return savePromise;
+    if(!durableToken){saveProblem=true;updateRecoveryUI();return Promise.resolve(false);}
+    if(!pendingSnapshot){saveProblem=false;updateRecoveryUI();return Promise.resolve(true);}
+    saveInFlight=true;updateRecoveryUI();
+    savePromise=(async()=>{
+      try{while(pendingSnapshot){const snapshot=pendingSnapshot;
+        await durableRequest({action:'save',id:workspaceId,token:durableToken,sequence:++saveSequence,snapshot});
+        if(pendingSnapshot===snapshot)pendingSnapshot=null;
+      }saveProblem=false;return true;}
+      catch{saveProblem=true;setStatus('未保存です。最新状態を保持しています。「未保存・再試行」で再試行できます。',true);return false;}
+      finally{saveInFlight=false;savePromise=null;updateRecoveryUI();}
+    })();return savePromise;
+  }
+
+  async function retryWorkspaceSave() {
+    if(saveInFlight)return flushWorkspace();
+    try{if(saveProblem||!durableToken){const claim=await durableRequest({action:'load',id:workspaceId});workspaceId=claim.id;durableToken=claim.token;}
+      captureDrafts();return await flushWorkspace();
+    }catch{saveProblem=true;updateRecoveryUI();return false;}
+  }
+
+  async function switchWorkspace(id=null) {
+    if(switching)return false;
+    if(!confirm('現在の作業を保存して切り替えます。添付ファイル・生成中の処理は復元できません。キャンセルすると現在の作業を続けられます。'))return false;
+    switching=true;
+    try{
+      captureDrafts();if(!await flushWorkspace())return false;
+      const result=id?await durableRequest({action:'read',id}):{snapshot:{schemaVersion:2,workspaceId:newId(),enabled:true,settings,panes:[],closedPanes:[],savedAt:Date.now()}};
+      if(!result.snapshot)throw Error('Missing workspace');
+      // Capture edits made while the read/save was pending; no await after final save.
+      captureDrafts();if(!await flushWorkspace())return false;
+      restoringWorkspace=true;sessionStorage.setItem(SESSION_KEY,JSON.stringify(result.snapshot));location.reload();return true;
+    }catch{restoringWorkspace=false;safeSave();setStatus('切替できませんでした。現在の作業を保持しています。',true);return false;}
+    finally{switching=false;}
   }
 
   async function showSavedWorkspaces() {
@@ -376,9 +414,7 @@
     try{const result=await durableRequest({action:'list'});
       for(const item of result.items.filter(item=>item.id!==workspaceId)){
         const restore=button(`${item.title} (${item.count}列) — ${new Date(item.savedAt).toLocaleString()}`,'保存した作業を復元',async()=>{
-          try{const result=await durableRequest({action:'read',id:item.id});if(!result.snapshot)throw Error('Missing workspace');
-            restoringWorkspace=true;sessionStorage.setItem(SESSION_KEY,JSON.stringify(result.snapshot));location.reload();
-          }catch{restoringWorkspace=false;setStatus('保存した作業を復元できませんでした。',true);}
+          await switchWorkspace(item.id);
         });restore.style.whiteSpace='normal';list.appendChild(restore);
       }
       if(!list.children.length)list.appendChild(create('p','','ほかの保存済み作業はありません。'));
@@ -488,8 +524,13 @@
     }
     if(!parked.length)menuControls.parkedList.appendChild(create('p','','退避中の会話はありません。'));
     menuControls.draftList.replaceChildren();
-    for(const p of state.panes.filter(p=>p.draft)){
-      const row=create('div','menu-row');row.appendChild(button(`${p.title} の保存済み下書き`,'保存済みテキストを表示',()=>{const field=create('textarea');field.readOnly=true;field.value=p.draft;field.setAttribute('aria-label',`${p.title} の保存済み下書き`);row.replaceChildren(field);field.focus();field.select();}));menuControls.draftList.appendChild(row);
+    for(const p of state.panes.filter(p=>p.draft||p.draftBackups?.length)){
+      const row=create('div','menu-row');row.appendChild(button(`${p.title} の下書きを比較`,'現在と保存済みの下書きを表示',()=>{
+        row.replaceChildren();
+        const show=(value,label)=>{const field=create('textarea');field.readOnly=true;field.value=value;field.setAttribute('aria-label',label);row.append(create('span','',label),field,button('コピー用に選択',label+'を選択',()=>{field.focus();field.select();}));};
+        show(p.draft||'','現在の入力');
+        for(const backup of p.draftBackups||[]){show(backup,'保持した下書き');row.appendChild(button('この下書きを破棄','表示した保存済み下書きを破棄',()=>{p.draftBackups=p.draftBackups.filter(x=>x!==backup);safeSave();syncOverlay();}));}
+      }));menuControls.draftList.appendChild(row);
     }
     if(menuControls.historyEntry)menuControls.historyEntry.textContent=`閉じた履歴 (${closedPanes.length})`;
     renderClosedHistory();
@@ -562,7 +603,7 @@
     const index=closedPanes.findIndex(p=>p.id===id);if(index<0)return;
     const existing=findConversation(closedPanes[index].url);
     if(existing){closedPanes.splice(index,1);selectConversation(existing);return;}
-    if(state.panes.length>=200)return;
+    if(state.panes.length>=200){setStatus('200列の上限です。不要な列を閉じてから復元してください。退避だけでは列数は減りません。',true);return;}
     const saved=closedPanes.splice(index,1)[0],p={...saved,id:newId(),visible:true};
     state.panes.push(p);state.activeId=p.id;renderPane(p);markActive();safeSave();syncOverlay();
   }
@@ -576,6 +617,8 @@
 
   function closePane(p) {
     const entry=paneNodes.get(p.id),frame=entry?.iframe;
+    frame?._cgwwDraftRecovery?.capture();
+    const undo={pane:{...p,draftBackups:p.draftBackups?[...p.draftBackups]:undefined},index:state.panes.indexOf(p),expires:Date.now()+30000};
     if(frame){
       frame._cgwwClosed=true;
       frame._cgwwFrameObserver?.disconnect();frame._cgwwFrameCleanup?.();frame._cgwwNavigationCleanup?.();frame._cgwwDraftRecovery?.dispose();
@@ -588,18 +631,33 @@
     state.panes=state.panes.filter(x=>x.id!==p.id);
     if(p.url)closedPanes.unshift({id:newId(),url:p.url,title:p.title,width:p.width,...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}),...(p.newChat?{newChat:true}:{})});
     closedPanes=closedPanes.slice(0,200);
+    undo.historyId=p.url?closedPanes[0]?.id:null;lastClosed=undo;
+    if(typeof setTimeout==='function'){clearTimeout(undoTimer);undoTimer=setTimeout(()=>{lastClosed=null;updateRecoveryUI();},30000);}
+    updateRecoveryUI();
     state.activeId=state.panes.find(x=>x.visible)?.id||null;
     syncPaneOrder();markActive();applyColumnWidths();safeSave();syncOverlay();updateFallbackDock();
-    setStatus('列を閉じました。閉じた履歴にはタイトルとURLなどの情報だけを保持します。');
+    setStatus('列を閉じました。30秒以内は「閉じた列を元に戻す」でテキストを復元できます。添付・生成中状態は対象外です。');
+  }
+
+  function undoClose() {
+    if(!lastClosed||Date.now()>lastClosed.expires)return;
+    const undo=lastClosed,p=undo.pane,existing=findConversation(p.url);
+    if(!existing&&state.panes.length>=200){setStatus('200列の上限です。列を閉じてから元に戻してください。',true);return;}
+    if(existing){existing.draftBackups=[...new Set([...(existing.draftBackups||[]),...(p.draftBackups||[]),p.draft].filter(x=>x&&x!==existing.draft))];selectConversation(existing);}
+    else{p.id=newId();p.visible=true;state.panes.splice(Math.max(0,undo.index),0,p);state.activeId=p.id;renderPane(p);syncPaneOrder();markActive();applyColumnWidths();}
+    closedPanes=closedPanes.filter(x=>x.id!==undo.historyId);lastClosed=null;safeSave();syncOverlay();updateRecoveryUI();
   }
 
   function makeOverlay() {
     overlay=create('div','overlay');overlay.setAttribute('role','group');overlay.setAttribute('aria-label','Split View 操作');
+    saveBadge=button('未保存・再試行','最新状態の保存を再試行',retryWorkspaceSave);saveBadge.setAttribute('aria-live','polite');
+    undoButton=button('閉じた列を元に戻す','30秒以内のテキスト復元。添付・生成中状態は対象外',undoClose);
+    restoreBadge=button('前回の作業を復元しました・新しい作業','保存して新しい作業を開始',()=>switchWorkspace());
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
     launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
-    viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);shadow.appendChild(overlay);
+    viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton,restoreBadge);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
     const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
     const row=()=>{const e=create('div','menu-row');overlayMenu.appendChild(e);return e;};
@@ -614,6 +672,7 @@
     const parkedHeading=create('h3','','退避中 (0)'),parkedList=create('div'),draftList=create('div');overlayMenu.append(parkedHeading,parkedList,draftList);
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
+    row().appendChild(button('新しい作業を開始','現在の作業を保存して新規開始',()=>switchWorkspace()));
     row().appendChild(button('保存した作業を復元','ブラウザ再起動後の作業を選ぶ',showSavedWorkspaces));const savedList=create('div');overlayMenu.appendChild(savedList);
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
     shadow.appendChild(overlayMenu);menuControls={savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
@@ -1069,6 +1128,7 @@
       try{const raw=sessionStorage.getItem(SESSION_KEY);if(raw)stored=JSON.parse(raw);}catch{/* Keep durable recovery available when session JSON is corrupt. */}
       try{
         const loaded=await durableRequest({action:'load',id:stored?.workspaceId});
+        autoRestored=!stored&&!!loaded.snapshot;
         workspaceId=loaded.id;durableToken=loaded.token;
         if(loaded.snapshot&&(!stored||loaded.snapshot.savedAt>=(stored.savedAt||0)))stored=loaded.snapshot;
         if(stored)stored={...stored,workspaceId:loaded.id};
