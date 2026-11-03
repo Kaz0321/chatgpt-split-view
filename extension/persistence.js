@@ -7,9 +7,10 @@
   const hostIdentity=value=>{try{const url=new URL(value);return url.origin+'|'+(url.searchParams.get('hostId')||'');}catch{return null;}};
   function snapshot(raw,id,newId){
     if(!raw||!Array.isArray(raw.panes))throw Error('Invalid workspace');
+    const panes=Core.restoreWorkspacePanes(raw.panes,newId);
     return {schemaVersion:2,workspaceId:id,savedAt:Date.now(),settings:Core.normalizeSettings(raw.settings),enabled:raw.enabled===true,
-      panes:Core.restoreWorkspacePanes(raw.panes,newId),closedPanes:Core.normalizeSessionPanes(raw.closedPanes).filter(p=>p.url).map(({url,title,width,newChat,autoWidth})=>({url,title,width,...(newChat?{newChat:true}:{}),...(typeof autoWidth==='boolean'?{autoWidth}:{})})),
-      activeIndex:Number.isInteger(raw.activeIndex)?raw.activeIndex:-1,activeUrl:Core.chatUrl(raw.activeUrl),
+      panes,closedPanes:Core.normalizeSessionPanes(raw.closedPanes).filter(p=>p.url).map(({url,title,width,newChat,autoWidth})=>({url,title,width,...(newChat?{newChat:true}:{}),...(typeof autoWidth==='boolean'?{autoWidth}:{})})),
+      activeIndex:Core.restoredActiveIndex(raw,panes),activeUrl:Core.chatUrl(raw.activeUrl),
       overlayPosition:Number.isFinite(raw.overlayPosition?.x)&&Number.isFinite(raw.overlayPosition?.y)?{x:raw.overlayPosition.x,y:raw.overlayPosition.y}:null};
   }
   function create(storage,newId=()=>crypto.randomUUID()){

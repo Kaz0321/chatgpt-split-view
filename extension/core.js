@@ -56,6 +56,16 @@
     return ORIGIN + pathname;
   }
 
+  // Project/GPT routes are aliases of the same conversation; local threads
+  // occupy a separate namespace. Blank chats intentionally have no identity.
+  function conversationKey(input) {
+    const normalized=chatUrl(input);if(!normalized)return null;
+    const path=new URL(normalized).pathname;
+    let id=path.split('/').pop();
+    if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))id=id.toLowerCase();
+    return (path.startsWith('/local/')?'local:':'chat:')+id;
+  }
+
   // A new draft is a distinct pane, not a conversation URL for history deduplication.
   function newChatUrl(input) {
     if (typeof input !== 'string' || input.length > 2048) return null;
@@ -79,8 +89,8 @@
     for (const p of panes.slice(0, max * 3)) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) continue;
       const url = chatUrl(p.url);
-      if (!url || seen.has(url)) continue;
-      seen.add(url);
+      if (!url || seen.has(conversationKey(url))) continue;
+      seen.add(conversationKey(url));
       result.push({
         url,
         title: normalizeTitle(p.title),
@@ -119,14 +129,38 @@
   // Workspace restoration: drafts never enter settings exports or closed history.
   function restoreWorkspacePanes(raw,newId) {
     if(!Array.isArray(raw))return [];
-    const ids=new Set(),result=[];
+    const ids=new Set(),result=[],conversations=new Map();
     for(const item of raw.slice(0,200)){
       const pane=normalizeSessionPanes([item])[0];if(!pane)continue;
       const candidate=typeof item.id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(item.id)?item.id:null;
       const id=candidate&&!ids.has(candidate)?candidate:newId();ids.add(id);
-      result.push({...pane,id,...(typeof item.draft==='string'?{draft:item.draft}:{})});
+      const key=conversationKey(pane.url),existing=key&&conversations.get(key);
+      if(existing){
+        existing.visible=existing.visible||pane.visible;
+        if(typeof item.draft==='string'&&item.draft&&!existing.draft)existing.draft=item.draft;
+        else if(typeof item.draft==='string'&&item.draft&&item.draft!==existing.draft){
+          // Preserve conflicting unsent text without reopening the conversation twice.
+          result.push({...pane,id,url:ORIGIN+'/',newChat:true,title:normalizeTitle(item.title)+' (下書き)',draft:item.draft});
+        }
+        continue;
+      }
+      const restored={...pane,id,...(typeof item.draft==='string'?{draft:item.draft}:{})};
+      result.push(restored);if(key)conversations.set(key,restored);
     }
     return result;
+  }
+
+  function restoredActiveIndex(raw,panes) {
+    const selected=Number.isInteger(raw.activeIndex)?raw.panes?.[raw.activeIndex]:null;
+    let index=selected?.id?panes.findIndex(p=>p.id===selected.id):-1;
+    const key=conversationKey(selected?.url||raw.activeUrl);
+    if(index<0&&key)index=panes.findIndex(p=>conversationKey(p.url)===key);
+    if(index<0&&selected&&!key&&normalizeSessionPanes([selected]).length){
+      let sequence=0;
+      index=restoreWorkspacePanes(raw.panes.slice(0,raw.activeIndex+1),()=>`legacy-${++sequence}`).length-1;
+    }
+    if(index<0)index=panes.findIndex(p=>p.visible);
+    return index;
   }
 
   const PANE_DRAG_TYPE = 'application/x-cgww-pane-id';
@@ -142,7 +176,7 @@
     result.splice(index+(after?1:0),0,source);return result;
   }
 
-  const api = { restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
+  const api = { conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CGWWCore = api;
 })(globalThis);

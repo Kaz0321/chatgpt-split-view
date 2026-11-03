@@ -558,8 +558,11 @@
   }
 
   function restoreClosedPane(id) {
-    if(!state.enabled||state.panes.length>=200)return;
+    if(!state.enabled)return;
     const index=closedPanes.findIndex(p=>p.id===id);if(index<0)return;
+    const existing=findConversation(closedPanes[index].url);
+    if(existing){closedPanes.splice(index,1);selectConversation(existing);return;}
+    if(state.panes.length>=200)return;
     const saved=closedPanes.splice(index,1)[0],p={...saved,id:newId(),visible:true};
     state.panes.push(p);state.activeId=p.id;renderPane(p);markActive();safeSave();syncOverlay();
   }
@@ -737,17 +740,28 @@
     setStatus('空の列を追加しました。左の履歴から会話を選んでください。');
   }
 
+  function findConversation(url) {
+    const key=Core.conversationKey(url);if(!key)return null;
+    // A draft may already have acquired its conversation URL before its observer ran.
+    for(const p of state.panes){
+      const frame=paneNodes.get(p.id)?.iframe;
+      try{const current=Core.chatUrl(frame?.contentWindow.location.href);if(current){p.url=current;delete p.newChat;}}catch{/* Same-origin only. */}
+      if(Core.conversationKey(p.url)===key)return p;
+    }
+    return null;
+  }
+
+  function selectConversation(p) {
+    p.visible=true;state.activeId=p.id;
+    renderPane(p);markActive();applyColumnWidths();safeSave();syncOverlay();updateFallbackDock();
+    paneNodes.get(p.id)?.root.scrollIntoView?.({block:'nearest',inline:'nearest'});
+  }
+
   function addPane(rawUrl, title, forceNew = false) {
     const url = Core.chatUrl(rawUrl);
     if (!url) { setStatus('ChatGPTの会話URL（/c/...）を指定してください。', true); return; }
-    const exists = state.panes.find(p => p.url === url);
-    if (exists && !forceNew) {
-      exists.visible = true;
-      if (exists.title === 'ChatGPT チャット' && title) exists.title = Core.normalizeTitle(title);
-      state.activeId = exists.id;
-      renderPane(exists); markActive(); applyColumnWidths(); safeSave();
-      return;
-    }
+    const exists = findConversation(url);
+    if (exists) { selectConversation(exists); return; }
     const active = state.panes.find(p => p.id === state.activeId);
     if (active && !active.url && !forceNew) {
       active.url = url;
@@ -767,6 +781,7 @@
   }
 
   function assignToActive(url, title, forceNew = false) {
+    const existing=findConversation(url);if(existing){selectConversation(existing);return;}
     // Incoming conversations never replace a selected/left-hand document.
     const last=state.panes[state.panes.length-1];
     if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.chatUrl(url);if(!last.url)return;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return;}
@@ -1064,7 +1079,7 @@
         closedPanes = Core.normalizeSessionPanes(stored?.closedPanes).filter(p=>p.url).map(p=>({...p,id:newId()}));
         state.enabled = stored?.enabled === true;
         state.panes = Core.restoreWorkspacePanes(stored?.panes,newId);
-        state.activeId = (Number.isInteger(stored?.activeIndex) ? state.panes[stored.activeIndex]?.id : null) || state.panes.find(p => p.url === stored?.activeUrl)?.id || state.panes.find(p => p.visible)?.id || null;
+        state.activeId = state.panes[Core.restoredActiveIndex(stored,state.panes)]?.id || null;
         if(Number.isFinite(stored?.overlayPosition?.x)&&Number.isFinite(stored?.overlayPosition?.y))overlayPosition={x:stored.overlayPosition.x,y:stored.overlayPosition.y};
       }
     } catch { /* corrupted session data: keep empty state, do not remove existing storage */ }
