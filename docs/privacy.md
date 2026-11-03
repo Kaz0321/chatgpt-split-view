@@ -45,3 +45,7 @@ manifest の権限は `storage`、content script の対象は `https://chatgpt.c
 ## v0.8.0 閉じた履歴
 
 閉じた列は最大200件のURL・表示名・幅・新規会話フラグを同じタブのsessionStorageに保存します。会話本文・入力・添付・iframe・document参照は履歴に保存しません。一時退避した列は同じページ内のiframeを保持します。
+
+## v0.8.9 recovery text
+
+Conflicting draft alternatives are stored locally alongside the current draft until explicitly discarded. They are not exported in settings or included in closed-history metadata. The most recently closed pane also retains a text-only undo record in page memory for 30 seconds; closing frees the iframe immediately. That temporary record is lost on expiry, another close, or leaving the page. No attachments, conversation transcript, or generation state are captured by this feature.

@@ -135,7 +135,9 @@
       const candidate=typeof item.id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(item.id)?item.id:null;
       const id=candidate&&!ids.has(candidate)?candidate:newId();ids.add(id);
       const key=conversationKey(pane.url),existing=key&&conversations.get(key);
+      const backups=Array.isArray(item.draftBackups)?item.draftBackups.filter(x=>typeof x==='string'&&x):[];
       if(existing){
+        if(backups.length)existing.draftBackups=[...new Set([...(existing.draftBackups||[]),...backups])];
         existing.visible=existing.visible||pane.visible;
         if(typeof item.draft==='string'&&item.draft&&!existing.draft)existing.draft=item.draft;
         else if(typeof item.draft==='string'&&item.draft&&item.draft!==existing.draft){
@@ -144,7 +146,7 @@
         }
         continue;
       }
-      const restored={...pane,id,...(typeof item.draft==='string'?{draft:item.draft}:{})};
+      const restored={...pane,id,...(backups.length?{draftBackups:[...new Set(backups)]}:{}),...(typeof item.draft==='string'?{draft:item.draft}:{})};
       result.push(restored);if(key)conversations.set(key,restored);
     }
     return result;
