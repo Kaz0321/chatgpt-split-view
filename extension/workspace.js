@@ -312,9 +312,11 @@
   }
 
   function getPaneWidth(pane) {
+    if(pane.folded)return 32;
     if (settings.equalizeColumns) {
-      const visibleCount = state.panes.filter(p => p.visible).length;
-      return Core.calculateEqualWidth(scroller?.clientWidth, visibleCount, originalMaxWidth);
+      const visibleCount = state.panes.filter(p => p.visible&&!p.folded).length;
+      const foldedWidth=state.panes.filter(p=>p.visible&&p.folded).length*40;
+      return Core.calculateEqualWidth((scroller?.clientWidth||0)-foldedWidth, visibleCount, originalMaxWidth);
     }
     if(pane.autoWidth===true||(pane.autoWidth===undefined&&settings.nativePaneWidth&&(!pane.width||pane.width===620||pane.width===Core.DEFAULTS.paneWidth)))return contentWidthDetected?originalMaxWidth:Core.DEFAULTS.paneWidth;
     return Core.boundedNumber(pane.width, settings.paneWidth, 320, originalMaxWidth);
@@ -324,7 +326,11 @@
     if (!scroller) return;
     for (const pane of state.panes) {
       const entry = paneNodes.get(pane.id);
-      if (entry) entry.root.style.width = `${getPaneWidth(pane)}px`;
+      if (entry) {
+        entry.root.style.width = `${getPaneWidth(pane)}px`;
+        entry.root.classList.toggle('folded',pane.folded===true);
+        if(entry.spine){entry.spine.setAttribute('aria-label',`${pane.title} を${pane.folded?'展開':'折りたたむ'}`);entry.spine.setAttribute('aria-expanded',String(!pane.folded));entry.spine.firstChild.textContent=pane.title;}
+      }
     }
     if (equalButton) { equalButton.textContent = settings.equalizeColumns ? '等分: ON' : '等分: OFF'; equalButton.setAttribute('aria-pressed',String(settings.equalizeColumns)); }
     if(settingsInputs?.widthInput){settingsInputs.widthInput.disabled=settings.equalizeColumns;settingsInputs.widthInput.value=String(settings.equalizeColumns?getPaneWidth(state.panes.find(p=>p.visible)||{}):settings.paneWidth);}
@@ -347,7 +353,7 @@
         enabled: state.enabled,
         activeUrl: state.panes.find(p => p.id === state.activeId)?.url || null,
         activeIndex:state.panes.findIndex(p=>p.id===state.activeId), overlayPosition,
-        panes: state.panes.map(p => ({ id:p.id, ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), ...(p.draftBackups?.length?{draftBackups:[...p.draftBackups]}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
+        panes: state.panes.map(p => ({ id:p.id, ...(p.folded?{folded:true}:{}), ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), ...(p.draftBackups?.length?{draftBackups:[...p.draftBackups]}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
       };
       try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(snapshot));}
       catch{setStatus('このタブ内の保存に失敗しました。再起動用の保存は継続します。',true);}
@@ -458,8 +464,8 @@
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
       .scroller{flex:1;min-height:0;display:flex;gap:7px;padding:9px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
-      .pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
-      .pane-head{height:32px;min-height:32px;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
+      .pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{width:100%}.pane.folded .pane-spine span{display:block;position:absolute;left:50%;top:50%;width:calc(100vh - 100px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform:translate(-50%,-50%) rotate(-90deg);font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
       .pane-control{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:3px;height:24px;min-width:24px;padding:0 5px;border:1px solid transparent;border-radius:4px;background:transparent;color:#526579;font-size:12px;line-height:1;vertical-align:middle}
       .pane-control:hover{border-color:#d7e1eb;background:#edf2f7;color:#243b51}.pane-control:active{background:#dfe8f1}
       .drag-grip{width:24px;padding:0;cursor:grab;font-size:14px}.drag-grip:active{cursor:grabbing}
@@ -613,6 +619,20 @@
     state.activeId=state.panes.find(x=>x.visible)?.id||null;
     markActive();applyColumnWidths();safeSave();syncOverlay();updateFallbackDock();
     setStatus('退避しました。設定メニューの「退避中」から復元できます。');
+  }
+
+  const detaching=new Set();
+  async function detachPane(p) {
+    if(detaching.has(p.id))return;
+    if(!Core.chatUrl(p.url)||p.newChat){setStatus('送信済みの会話を選んでください。新規会話と入力は元の列に保持します。',true);return;}
+    if(!confirm('会話URLを新規ウィンドウで開き、元の列を退避します。下書き・添付・生成中の状態は元の列に残り、自動移行しません。続けますか？'))return;
+    detaching.add(p.id);
+    try{
+      captureDrafts();if(!await flushWorkspace())return;
+      await window.CGWWDetached.request({action:'detach',workspaceId,url:p.url,title:p.title});
+      if(state.panes.includes(p))parkPane(p);
+    }catch(e){setStatus(e.message||'新規ウィンドウを作成できませんでした。元の列を保持しています。',true);}
+    finally{detaching.delete(p.id);}
   }
 
   function closePane(p) {
@@ -811,7 +831,7 @@
   }
 
   function selectConversation(p) {
-    p.visible=true;state.activeId=p.id;
+    p.visible=true;p.folded=false;state.activeId=p.id;
     renderPane(p);markActive();applyColumnWidths();safeSave();syncOverlay();updateFallbackDock();
     paneNodes.get(p.id)?.root.scrollIntoView?.({block:'nearest',inline:'nearest'});
   }
@@ -1022,22 +1042,25 @@
         // Filling an empty pane is safe. Existing loaded frames are never replaced.
         entry.iframe = buildFrame(p, entry.main, entry.foot);
       }
-      return;
+      applyColumnWidths();return;
     }
     const root = create('article', 'pane');
     root.style.width = `${getPaneWidth(p)}px`;
     root.hidden = !p.visible;
+    const spine=button('','列を折りたたむ / 展開',()=>{p.folded=!p.folded;state.activeId=p.id;applyColumnWidths();markActive();safeSave();},'pane-spine');
+    spine.appendChild(create('span','',p.title));root.appendChild(spine);
     const head = create('div', 'pane-head');
     const grip=button('⠿','列をドラッグで移動',()=>{state.activeId=p.id;markActive();},'pane-control drag-grip');head.appendChild(grip);
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
     head.appendChild(index);
     const title = create('input', 'pane-title');
     title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '表示名を編集'; title.setAttribute('aria-label', '列の表示名');
-    title.addEventListener('change', () => { p.title = Core.normalizeTitle(title.value); title.value = p.title; safeSave(); });
+    title.addEventListener('change', () => { p.title = Core.normalizeTitle(title.value); title.value = p.title; applyColumnWidths();safeSave(); });
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
     const foot=create('span','pane-status');setPaneStatus(foot,'会話URL未指定');head.appendChild(foot);
     const reloadButton=button('↻ 更新','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-control pane-reload');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
+    const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は退避して保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
     const parkButton=button('_','この列を一時退避（iframeを保持）',()=>parkPane(p),'pane-control pane-park');parkButton.setAttribute('aria-label','この列を退避');head.appendChild(parkButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
@@ -1075,7 +1098,7 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip });
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine });
     attachPaneDrag(root,grip,p);syncPaneOrder();applyColumnWidths();
   }
 
@@ -1118,6 +1141,8 @@
 
   async function initialize() {
     if(initializing||initialized)return;initializing=true;
+    const detached=await window.CGWWDetached?.boot;
+    if(detached?.detached||detached?.blocked){initializing=false;return;}
     let loadError=false;
     try {
       const obj = await chrome.storage.local.get(PREF_KEY);
@@ -1127,7 +1152,8 @@
       let stored=null;
       try{const raw=sessionStorage.getItem(SESSION_KEY);if(raw)stored=JSON.parse(raw);}catch{/* Keep durable recovery available when session JSON is corrupt. */}
       try{
-        const loaded=await durableRequest({action:'load',id:stored?.workspaceId});
+        if(detached?.workspaceId)stored=null;
+        const loaded=await durableRequest({action:'load',id:detached?.workspaceId||stored?.workspaceId});
         autoRestored=!stored&&!!loaded.snapshot;
         workspaceId=loaded.id;durableToken=loaded.token;
         if(loaded.snapshot&&(!stored||loaded.snapshot.savedAt>=(stored.savedAt||0)))stored=loaded.snapshot;
@@ -1155,6 +1181,20 @@
     window.addEventListener('beforeunload',captureDrafts);
     window.addEventListener('click', handleHistoryClick, true);
     chrome.runtime?.onMessage?.addListener(handleAction);
+    chrome.runtime?.onMessage?.addListener((m,s,reply)=>{
+      if(m?.type!=='CGWW_INTEGRATE')return;
+      if(s.id!==chrome.runtime.id||s.tab||m.workspaceId!==workspaceId||!Core.chatUrl(m.url)){reply({ok:false});return;}
+      (async()=>{
+        try{
+          const existing=findConversation(m.url);
+          if(!existing&&state.panes.length>=200)throw Error('200列が上限です。不要な列を閉じてから再試行してください。');
+          setEnabled(true);if(existing)selectConversation(existing);else addPane(m.url,m.title,true);
+          if(!findConversation(m.url))throw Error('統合をキャンセルしました。');
+          captureDrafts();if(!await flushWorkspace())throw Error('元画面の保存に失敗しました。再試行してください。');
+          reply({ok:true});
+        }catch(e){reply({ok:false,error:e.message});}
+      })();return true;
+    });
     chrome.storage?.onChanged?.addListener((changes,area)=>{if(area==='local'&&changes[PREF_KEY])applyPreferences(changes[PREF_KEY].newValue);});
   }
 

@@ -146,7 +146,7 @@
         }
         continue;
       }
-      const restored={...pane,id,...(backups.length?{draftBackups:[...new Set(backups)]}:{}),...(typeof item.draft==='string'?{draft:item.draft}:{})};
+      const restored={...pane,id,...(item.folded===true?{folded:true}:{}),...(backups.length?{draftBackups:[...new Set(backups)]}:{}),...(typeof item.draft==='string'?{draft:item.draft}:{})};
       result.push(restored);if(key)conversations.set(key,restored);
     }
     return result;

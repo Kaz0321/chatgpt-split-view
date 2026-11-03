@@ -104,3 +104,9 @@
 - 開発・検証・プライバシー・変更履歴を `docs/` に統一し、来歴補足を開発文書に統合。
 - テスト・検査・配布ZIP生成のパスを更新。配布ZIPのmanifestは従来どおり直下。
 - ソースからの導入先を `extension/` と明記。拡張バージョンは0.5.0を維持。
+
+## 0.8.10
+
+- Add safe native-window detach/integrate controls; preserve source iframe and detached document.
+- Add persistent 32px book-spine folding with left-rotated titles and keyboard toggles.
+- Add handoff failure/restart and folding regression coverage.
