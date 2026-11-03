@@ -1,8 +1,14 @@
 /* Open only validated chat URLs, in the invoking tab's window. */
 importScripts('core.js');
 importScripts('persistence.js');
+importScripts('windows.js');
+let windowStore;
 let workspaceStore;
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if(message?.type==='CGWW_WINDOW'){
+    windowStore ||= globalThis.CGWWWindows.create(chrome);
+    windowStore.handle(message,sender).then(sendResponse).catch(e=>sendResponse({ok:false,error:e.message}));return true;
+  }
   if(message?.type==='CGWW_WORKSPACE'){
     if(!sender?.tab?.id||sender.frameId!==0||!sender.url?.startsWith('https://chatgpt.com/')){sendResponse({ok:false});return;}
     workspaceStore ||= globalThis.CGWWPersistence.create(chrome.storage);

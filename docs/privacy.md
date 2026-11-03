@@ -49,3 +49,7 @@ manifest の権限は `storage`、content script の対象は `https://chatgpt.c
 ## v0.8.9 recovery text
 
 Conflicting draft alternatives are stored locally alongside the current draft until explicitly discarded. They are not exported in settings or included in closed-history metadata. The most recently closed pane also retains a text-only undo record in page memory for 30 seconds; closing frees the iframe immediately. That temporary record is lost on expiry, another close, or leaving the page. No attachments, conversation transcript, or generation state are captured by this feature.
+
+## Window handoffs
+
+v0.8.10 stores source workspace ID, conversation URL/title and a random handoff marker in extension-local storage. Current browser tab IDs use session storage. No draft, attachment or transcript is sent between windows. The URL fragment and per-tab session storage identify the detached document; clearing these can remove its integration toolbar association. Handoff records are bounded to 200. No new permissions or device sync are added.

@@ -16,13 +16,13 @@ function harness(extra={}) {
   const source=fs.readFileSync(path.join(ROOT,'workspace.js'),'utf8');
   assert(source.includes('  void initialize();'));
   vm.runInContext(source.replace('  void initialize();', `globalThis.testHooks = {
-    historyAnchor, attachEmbeddedNavigation, readOriginalMaxWidth, refreshContentLayout, scheduleContentLayout, actionState, setEqualize, applyColumnWidths, syncPaneOrder, reorderPane, attachPaneDrag,
+    historyAnchor, attachEmbeddedNavigation, readOriginalMaxWidth, refreshContentLayout, scheduleContentLayout, actionState, setEqualize, applyColumnWidths, getPaneWidth, syncPaneOrder, reorderPane, attachPaneDrag,
     getOrder(){return state.panes.map(p=>p.id);},
     measureNativeSidebar, tagEmbeddedNavigation, applyIframeSidebarRule,
     setSettings(value) { settings = Core.normalizeSettings(value); },
     setEnabled(value) { state.enabled = value; },
     setLayout(panes, entries, availableWidth, cap) {
-      state.panes=panes; entries.forEach((entry,id)=>paneNodes.set(id,entry));
+      state.panes=panes; entries.forEach((entry,id)=>{entry.root.classList ||= {toggle(){}};paneNodes.set(id,entry);});
       scroller={clientWidth:availableWidth}; originalMaxWidth=cap;
       savePrefs=()=>{}; safeSave=()=>{};
     },
@@ -37,6 +37,15 @@ test('same-realm history links are detected',()=>{
   const {hooks,sandbox}=harness();
   const anchor=new sandbox.Element(); anchor.closest=()=>anchor;
   assert.equal(hooks.historyAnchor({target:anchor}),anchor);
+});
+
+test('folded spines reserve 32px and keep iframe references while equalizing expanded columns',()=>{
+  const {hooks}=harness();hooks.setSettings({equalizeColumns:true});
+  const panes=[{id:'a',visible:true,folded:true,width:580},{id:'b',visible:true,width:620}],frame={draft:'keep'};
+  const entries=new Map(panes.map(p=>[p.id,{root:{style:{}},iframe:frame}]));hooks.setLayout(panes,entries,1000,1400);hooks.applyColumnWidths();
+  assert.equal(hooks.getPaneWidth(panes[0]),32);assert.equal(panes[0].width,580);assert.equal(entries.get('a').iframe,frame);
+  assert.equal(hooks.getPaneWidth(panes[1]),C.calculateEqualWidth(960,1,1400));
+  panes[0].folded=false;hooks.setSettings({equalizeColumns:false,nativePaneWidth:false});hooks.applyColumnWidths();assert.equal(hooks.getPaneWidth(panes[0]),580);
 });
 
 test('iframe-realm history links are detected without parent instanceof rejection',()=>{
