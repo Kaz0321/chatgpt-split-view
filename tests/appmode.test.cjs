@@ -68,7 +68,7 @@ test('overlay controls add fresh chats and apply width/equal settings directly',
  const h=harness();h.a.makeOverlay();h.a.setEnabled(true);const u=h.a.ui();u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,2);u.menuControls.width.value='480';u.menuControls.apply.emit('click');assert.equal(h.a.settings().paneWidth,480);u.menuControls.equal.checked=true;u.menuControls.equal.emit('change');assert.equal(h.a.settings().equalizeColumns,true);assert.equal(u.menuControls.width.disabled,true);
 });
 test('overlay position clamps inside narrow viewport and arrow movement persists locally',()=>{
- const h=harness();h.a.makeOverlay();h.ctx.innerWidth=400;h.ctx.innerHeight=300;h.a.position({x:5000,y:5000});h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'230px');assert.equal(u.overlay.style.top,'248px');u.overlay.children[0].emit('keydown',{key:'ArrowLeft'});assert.equal(u.overlay.style.left,'214px');assert.equal(h.saves.at(-1).overlayPosition.x,214);
+ const h=harness();h.a.enabled(true);h.a.prefs({sidebarVisible:false});h.a.makeOverlay();h.ctx.innerWidth=400;h.ctx.innerHeight=300;h.a.position({x:5000,y:5000});h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'230px');assert.equal(u.overlay.style.top,'248px');u.overlay.children[0].emit('keydown',{key:'ArrowLeft'});assert.equal(u.overlay.style.left,'214px');assert.equal(h.saves.at(-1).overlayPosition.x,214);
 });
 test('new draft transition records only validated same-origin conversation URL without changing iframe source',()=>{
  const h=harness();const p={newChat:true,url:Core.ORIGIN+'/'};const frame={_cgwwPane:p,src:p.url,contentWindow:{location:{href:Core.ORIGIN+'/c/fixture000'}}};h.a.syncNewChatLocation(frame);assert.equal(p.url,Core.ORIGIN+'/c/fixture000');assert.equal(p.newChat,undefined);assert.equal(frame.src,Core.ORIGIN+'/');
@@ -190,4 +190,17 @@ test('compact tab name selects and right action folds without a duplicate select
 test('docked menu respects saved sidebar widths and ignores floating coordinates without deleting them',()=>{
  const h=harness();h.a.enabled(true);h.a.position({x:500,y:400});h.a.makeOverlay();
  for(const width of [180,348,461,520]){h.a.prefs({sidebarWidth:width,sidebarVisible:true});h.a.ui().launcher.emit('click');h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.width,width+'px');assert.equal(u.overlayMenu.style.width,width+'px');assert.equal(u.overlayMenu.style.top,'48px');assert.equal(h.a.settings().sidebarWidth,width);if(!u.overlayMenu.hidden)h.a.closeOverlay();}
+});
+
+
+test('save group button reveals local-date default and cancel preserves all data',()=>{
+ const h=harness();h.a.makeOverlay();const c=h.a.ui().menuControls;assert(c.groupSaveDetails.hidden);const count=h.saves.length;
+ c.groupStart.emit('click');const d=new Date(),expected=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+ assert.equal(c.groupName.value,expected);assert.equal(c.groupSaveDetails.hidden,false);assert.equal(h.doc.activeElement,c.groupName);assert.equal(c.groupStart.getAttribute('aria-expanded'),'true');
+ c.groupName.value='not saved';c.groupCancel.emit('click');assert(c.groupSaveDetails.hidden);assert.equal(h.saves.length,count);assert.equal(h.doc.activeElement,c.groupStart);
+});
+
+test('original view uses the same left toolbar alignment and accessible tab state',()=>{
+ const h=harness();h.a.init([{id:'a',title:'A',visible:true}]);h.a.makeOverlay();h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.top,'0px');assert.equal(u.overlay.style.width,'348px');
+ const row=u.menuControls.parkedList.children[0];assert.equal(row.children[2].getAttribute('aria-expanded'),'true');assert.match(row.children[1].className,/sr-only/);
 });
