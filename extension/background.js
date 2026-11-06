@@ -20,7 +20,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if(!sender?.tab?.id||sender.frameId!==0||!sender.url?.startsWith('https://chatgpt.com/')){sendResponse({ok:false});return;}
     chrome.runtime.openOptionsPage().then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false}));return true;
   }
-  const url = globalThis.CGWWCore.chatUrl(message.url);
+  const url = globalThis.CGWWCore.paneUrl(message.url);
   if (!url || !sender?.tab?.id || sender.frameId !== 0 ||
       !sender.url?.startsWith('https://chatgpt.com/')) {
     sendResponse({ ok: false });

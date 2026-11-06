@@ -405,8 +405,8 @@
   function mergeGroupPanes(snapshot) {
     const incoming=Core.restoreWorkspacePanes(snapshot.panes,newId),used=new Set(state.panes.map(p=>p.id)),plans=[];
     for(const saved of incoming){
-      const key=Core.conversationKey(saved.url);
-      const existing=key?findConversation(saved.url):state.panes.find(p=>p.id===saved.id&&(saved.newChat||(!Core.conversationKey(p.url)&&p.url===saved.url)));
+      const key=Core.paneKey(saved.url);
+      const existing=key?findConversation(saved.url):state.panes.find(p=>p.id===saved.id&&(saved.newChat||(!Core.paneKey(p.url)&&p.url===saved.url)));
       if(existing){plans.push({saved,pane:existing,existing:true});continue;}
       const pane={...saved};if(used.has(pane.id))pane.id=newId();used.add(pane.id);plans.push({saved,pane,existing:false});
     }
@@ -814,7 +814,7 @@
     updateGeometry();
     closeOverlay(false);
     if (state.enabled && state.panes.length === 0 && !restoring) {
-      const url = Core.chatUrl(location.href);
+      const url = Core.paneUrl(location.href);
       if (url) addPane(url, '現在のチャット');
       else addNewChat();
     }
@@ -836,8 +836,8 @@
 
   function syncNewChatLocation(frame) {
     const p=frame._cgwwPane;
-    if(!p?.newChat)return;
-    try{const url=Core.chatUrl(frame.contentWindow.location.href);if(url){p.url=url;delete p.newChat;safeSave();}}catch{/* Same-origin only. */}
+    if(!p||(!p.newChat&&!Core.gptUrl(p.url)))return;
+    try{const url=Core.paneUrl(frame.contentWindow.location.href);if(url&&url!==p.url){p.url=url;delete p.newChat;safeSave();}}catch{/* Same-origin only. */}
   }
 
   function newChatControl(event) {
@@ -880,12 +880,12 @@
   }
 
   function findConversation(url) {
-    const key=Core.conversationKey(url);if(!key)return null;
+    const key=Core.paneKey(url);if(!key)return null;
     // A draft may already have acquired its conversation URL before its observer ran.
     for(const p of state.panes){
       const frame=paneNodes.get(p.id)?.iframe;
-      try{const current=Core.chatUrl(frame?.contentWindow.location.href);if(current){p.url=current;delete p.newChat;}}catch{/* Same-origin only. */}
-      if(Core.conversationKey(p.url)===key)return p;
+      try{const current=Core.paneUrl(frame?.contentWindow.location.href);if(current){p.url=current;delete p.newChat;}}catch{/* Same-origin only. */}
+      if(Core.paneKey(p.url)===key)return p;
     }
     return null;
   }
@@ -897,7 +897,7 @@
   }
 
   function addPane(rawUrl, title, forceNew = false) {
-    const url = Core.chatUrl(rawUrl);
+    const url = Core.paneUrl(rawUrl);
     if (!url) { setStatus('ChatGPTの会話URL（/c/...）を指定してください。', true); return; }
     const exists = findConversation(url);
     if (exists) { selectConversation(exists); return; }
@@ -923,14 +923,14 @@
     const existing=findConversation(url);if(existing){selectConversation(existing);return;}
     // Incoming conversations never replace a selected/left-hand document.
     const last=state.panes[state.panes.length-1];
-    if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.chatUrl(url);if(!last.url)return;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return;}
+    if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.paneUrl(url);if(!last.url)return;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return;}
     addPane(url,title,true);
   }
 
   function addFromPrompt() {
     const raw = prompt('ChatGPTの会話URL（https://chatgpt.com/c/...）を貼り付けてください。');
     if (raw === null) return;
-    const url = Core.chatUrl(raw);
+    const url = Core.paneUrl(raw);
     if (!url) { alert('対応するURLではありません。chatgpt.com の会話URLを入力してください。'); return; }
     addPane(url, '追加したチャット', true);
   }
@@ -969,9 +969,9 @@
     if (!state.enabled || !settings.interceptSidebar || event.button !== 0 || event.defaultPrevented) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const anchor = historyAnchor(event);
-    if (!anchor || anchor.hasAttribute?.('download') || !isSidebarLink(anchor, event.clientX)) return;
-    const url = Core.chatUrl(anchor.href);
-    if (!url) return;
+    if (!anchor || anchor.hasAttribute?.('download')) return;
+    const url = Core.paneUrl(anchor.href);
+    if (!url || (!Core.gptUrl(url) && !isSidebarLink(anchor, event.clientX))) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     assignToActive(url, Core.normalizeTitle(anchor.innerText || anchor.getAttribute('aria-label') || anchor.textContent), event.shiftKey);
@@ -995,12 +995,12 @@
         if (event.ctrlKey || event.metaKey || event.altKey) return;
         const anchor = historyAnchor(event);
         if (!anchor || anchor.hasAttribute?.('download')) return;
-        const url = Core.chatUrl(anchor.href);
+        const url = Core.paneUrl(anchor.href);
         if (!url) return;
         // Embedded history links and explicit _blank chat links should be
         // opened in workspace columns, not browser windows. Non-chat links
         // retain their original navigation behavior.
-        if (!isSidebarLink(anchor, event.clientX, true) && anchor.target !== '_blank') return;
+        if (!Core.gptUrl(url) && !isSidebarLink(anchor, event.clientX, true) && anchor.target !== '_blank') return;
         event.preventDefault();
         event.stopImmediatePropagation();
         state.activeId = pane.id;
@@ -1078,7 +1078,7 @@
           attachEmbeddedNavigation(frame, p);
           setTimeout(ensureMasterSidebar, 250);
           const displayedUrl = frame.contentWindow.location.href;
-          const valid=Core.chatUrl(displayedUrl)||(p.newChat&&Core.newChatUrl(displayedUrl));
+          const valid=Core.paneUrl(displayedUrl)||(p.newChat&&Core.newChatUrl(displayedUrl));
           setPaneStatus(foot,valid?'読込済：会話内の履歴リンクもワークスペースへ割当':'読込先が会話以外です。通常のChatGPT画面で認証や対応形式を確認',valid?'loaded':'warning');
         } else {
           setPaneStatus(foot,'埋め込み不可の可能性あり。通常のChatGPT画面で確認','warning');
@@ -1188,7 +1188,7 @@
         case 'add':if(!state.enabled)throw Error('横並びを開始してください。');addNewChat();break;
         case 'width':settings.nativePaneWidth=false;settings.paneWidth=Core.boundedNumber(message.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=settings.nativePaneWidth;}applyColumnWidths();savePrefs();safeSave();break;
         case 'equal':setEqualize(message.value===true);break;
-        case 'addUrl':if(!state.enabled)throw Error('横並びを開始してください。');if(!Core.chatUrl(message.url))throw Error('有効なChatGPT会話URLを指定してください。');assignToActive(message.url,'追加したチャット');break;
+        case 'addUrl':if(!state.enabled)throw Error('横並びを開始してください。');if(!Core.paneUrl(message.url))throw Error('有効なChatGPT会話URLを指定してください。');assignToActive(message.url,'追加したチャット');break;
         case 'restore':{const p=state.panes.find(p=>p.id===message.paneId&&!p.visible);if(!p)throw Error('復帰する列が見つかりません。');p.visible=true;state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();break;}
         default:throw Error('未対応の操作です。');
       }
@@ -1245,7 +1245,7 @@
     chrome.runtime?.onMessage?.addListener(handleAction);
     chrome.runtime?.onMessage?.addListener((m,s,reply)=>{
       if(m?.type!=='CGWW_INTEGRATE')return;
-      if(s.id!==chrome.runtime.id||s.tab||m.workspaceId!==workspaceId||!Core.chatUrl(m.url)){reply({ok:false});return;}
+      if(s.id!==chrome.runtime.id||s.tab||m.workspaceId!==workspaceId||!Core.paneUrl(m.url)){reply({ok:false});return;}
       (async()=>{
         try{
           const existing=findConversation(m.url);

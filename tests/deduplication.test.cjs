@@ -72,3 +72,24 @@ test('a saved unsent chat that has since become a conversation reuses its stable
  const live={id:'draft-stable',url:base+'/c/sent123',visible:true,draft:'new input'},a=harness([live]);
  a.mergeGroupPanes({panes:[{id:'draft-stable',url:base+'/',newChat:true,visible:true,draft:'old input'}]});assert.equal(a.get().panes.length,1);assert.equal(live.url,base+'/c/sent123');assert.equal(live.draft,'new input');assert.deepEqual(Array.from(live.draftBackups),['old input']);
 });
+
+
+test('GPT links and group restoration reuse a folded resource without merging its conversations',()=>{
+ const url=base+'/g/g-h8l4uLHFQ-video-ai-by-invideo';
+ const p={id:'gpt',url,visible:false,folded:true,draft:'live'};const a=harness([p]);const frame=a.entries().get('gpt').iframe;
+ a.assignToActive(url,'GPT');a.assignToActive('/g/g-h8l4uLHFQ-renamed','GPT',true);
+ assert.equal(a.get().panes.length,1);assert.equal(p.visible,true);assert.equal(p.folded,false);assert.equal(a.entries().get('gpt').iframe,frame);
+ a.mergeGroupPanes({panes:[{id:'saved',url,draft:'old',visible:true}]});assert.equal(a.get().panes.length,1);assert.equal(p.draft,'live');assert.deepEqual(Array.from(p.draftBackups),['old']);
+ frame.contentWindow={location:{href:url+'/c/thread123'}};
+ a.assignToActive('/c/thread123','Conversation');assert.equal(a.get().panes.length,1);
+ a.assignToActive(url,'Start GPT');assert.equal(a.get().panes.length,2);assert.equal(p.url,url+'/c/thread123');
+});
+
+
+test('GPT resources survive durable snapshot and reload with separate conversation identity',()=>{
+ const P=require('../extension/persistence.js');let n=0;
+ const url=base+'/g/g-h8l4uLHFQ-video-ai-by-invideo';
+ const first=P.snapshot({enabled:true,activeIndex:0,panes:[{id:'g',url,folded:true,draft:'keep',visible:true},{id:'c',url:url+'/c/thread123'}]},'workspace',()=>`n${++n}`);
+ const second=P.snapshot(first,'workspace',()=>`n${++n}`);
+ assert.equal(second.panes.length,2);assert.equal(second.panes[0].url,url);assert.equal(second.panes[0].draft,'keep');assert.equal(second.panes[0].folded,true);assert.deepEqual(second.panes,first.panes);
+});

@@ -157,3 +157,11 @@ test('newly mounted submenu layers are applied inside mutation callback without 
   assert(wrapper.hasAttribute('data-cgww-native-menu-layer'));assert(submenu.hasAttribute('data-cgww-native-menu-layer'));
   h.stopNativeMenuWatch();
 });
+
+
+test('GPT page links open a pane from main content while menus and modified clicks stay native',()=>{
+ const {h,el}=harness();const anchor=el('a');anchor.href='https://chatgpt.com/g/g-h8l4uLHFQ-video-ai-by-invideo';anchor.textContent='Video AI';
+ const e=click(anchor);h.handleHistoryClick(e);assert.equal(e.defaultPrevented,true);assert.equal(h.calls[0][0],anchor.href);
+ const modified=click(anchor,{ctrlKey:true});h.handleHistoryClick(modified);assert.equal(modified.defaultPrevented,false);assert.equal(h.calls.length,1);
+ const menu=el('div',{role:'menu'});anchor.parentElement=menu;const action=click(anchor);h.handleHistoryClick(action);assert.equal(action.defaultPrevented,false);assert.equal(h.calls.length,1);
+});

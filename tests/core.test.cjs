@@ -72,3 +72,17 @@ test('equal columns fill available width, respect original cap and scroll below 
   assert.equal(C.normalizeSettings({equalizeColumns:true, keepMasterSidebar:false}).equalizeColumns,true);
   assert.equal(C.normalizeSettings({equalizeColumns:'yes'}).equalizeColumns,false);
 });
+
+
+test('GPT landing URLs remain distinct from conversations and normalize resource identity',()=>{
+ const url='https://chatgpt.com/g/g-h8l4uLHFQ-video-ai-by-invideo';
+ assert.equal(C.chatUrl(url),null);assert.equal(C.paneUrl(url+'/?x=1#section'),url);
+ assert.equal(C.paneKey(url),C.paneKey('/g/g-h8l4uLHFQ-renamed'));
+ assert.notEqual(C.paneKey(url),C.paneKey('/c/h8l4uLHFQ'));
+ assert.notEqual(C.paneKey(url),C.paneKey(url+'/c/thread123'));
+ assert.equal(C.paneKey(url+'/c/thread123'),C.conversationKey('/c/thread123'));
+ for(const invalid of ['/g','/g/g-xx','/g/g-abc/editor','/skills','https://evil.test/g/g-abc','https://user@chatgpt.com/g/g-abc'])assert.equal(C.paneUrl(invalid),null);
+ const raw=[{id:'gpt',url,draft:'keep',folded:true},{id:'other',url:'/g/g-h8l4uLHFQ-renamed'},{id:'chat',url:url+'/c/thread123'},{id:'fresh',url:C.ORIGIN+'/',newChat:true}];
+ const restored=C.restoreWorkspacePanes(raw,()=> 'generated');assert.equal(restored.length,3);assert.equal(restored[0].draft,'keep');assert.equal(restored[0].folded,true);assert.equal(restored[2].newChat,true);
+ assert.deepEqual(C.restoreWorkspacePanes(restored,()=> 'generated'),restored);
+});

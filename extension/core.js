@@ -56,6 +56,21 @@
     return ORIGIN + pathname;
   }
 
+  // GPT landing pages are resources, not conversations. Keep their namespace separate.
+  function gptUrl(input) {
+    if(typeof input!=='string'||input.length>2048)return null;
+    let url;try{url=new URL(input,ORIGIN);}catch{return null;}
+    if(url.origin!==ORIGIN||url.username||url.password)return null;
+    const path=url.pathname.replace(/\/$/,'');
+    return /^\/g\/g-[A-Za-z0-9]{3,}(?:-[A-Za-z0-9_-]+)?$/.test(path)?ORIGIN+path:null;
+  }
+  function paneUrl(input) { return chatUrl(input)||gptUrl(input); }
+  function paneKey(input) {
+    const chat=conversationKey(input);if(chat)return chat;
+    const gpt=gptUrl(input);
+    return gpt?'gpt:'+new URL(gpt).pathname.slice(5).split('-')[0]:null;
+  }
+
   // Project/GPT routes are aliases of the same conversation; local threads
   // occupy a separate namespace. Blank chats intentionally have no identity.
   function conversationKey(input) {
@@ -88,9 +103,9 @@
     if (!Array.isArray(panes)) return result;
     for (const p of panes.slice(0, max * 3)) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) continue;
-      const url = chatUrl(p.url);
-      if (!url || seen.has(conversationKey(url))) continue;
-      seen.add(conversationKey(url));
+      const url = paneUrl(p.url);
+      if (!url || seen.has(paneKey(url))) continue;
+      seen.add(paneKey(url));
       result.push({
         url,
         title: normalizeTitle(p.title),
@@ -108,7 +123,7 @@
     for (const p of panes.slice(0, max)) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) continue;
       const fresh = p.newChat === true && newChatUrl(p.url);
-      const url = p.url == null ? null : (fresh || chatUrl(p.url));
+      const url = p.url == null ? null : (fresh || paneUrl(p.url));
       if (p.url != null && !url) continue;
       result.push({ url, ...(fresh ? {newChat:true} : {}), title: normalizeTitle(p.title, fresh ? '新しいチャット' : (url ? 'ChatGPT チャット' : '未設定の列')),
         width: boundedNumber(p.width, DEFAULTS.paneWidth, 320, 1400), ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), visible: p.visible !== false });
@@ -134,7 +149,7 @@
       const pane=normalizeSessionPanes([item])[0];if(!pane)continue;
       const candidate=typeof item.id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(item.id)?item.id:null;
       const id=candidate&&!ids.has(candidate)?candidate:newId();ids.add(id);
-      const key=conversationKey(pane.url),existing=key&&conversations.get(key);
+      const key=paneKey(pane.url),existing=key&&conversations.get(key);
       const backups=Array.isArray(item.draftBackups)?item.draftBackups.filter(x=>typeof x==='string'&&x):[];
       if(existing){
         if(backups.length)existing.draftBackups=[...new Set([...(existing.draftBackups||[]),...backups])];
@@ -155,8 +170,8 @@
   function restoredActiveIndex(raw,panes) {
     const selected=Number.isInteger(raw.activeIndex)?raw.panes?.[raw.activeIndex]:null;
     let index=selected?.id?panes.findIndex(p=>p.id===selected.id):-1;
-    const key=conversationKey(selected?.url||raw.activeUrl);
-    if(index<0&&key)index=panes.findIndex(p=>conversationKey(p.url)===key);
+    const key=paneKey(selected?.url||raw.activeUrl);
+    if(index<0&&key)index=panes.findIndex(p=>paneKey(p.url)===key);
     if(index<0&&selected&&!key&&normalizeSessionPanes([selected]).length){
       let sequence=0;
       index=restoreWorkspacePanes(raw.panes.slice(0,raw.activeIndex+1),()=>`legacy-${++sequence}`).length-1;
@@ -178,7 +193,7 @@
     result.splice(index+(after?1:0),0,source);return result;
   }
 
-  const api = { conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
+  const api = { gptUrl, paneUrl, paneKey, conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CGWWCore = api;
 })(globalThis);

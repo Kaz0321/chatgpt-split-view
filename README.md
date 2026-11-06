@@ -84,3 +84,12 @@ ChatGPTの複数の会話を横に並べて使うChrome拡張です。列（こ�
 - [更新履歴](docs/changelog.md)／[過去のREADME・更新履歴](docs/readme-history.md)
 - [開発・テスト手順](docs/development.md)／[検証範囲](docs/verification.md)
 - [保存とプライバシー](docs/privacy.md)／[MIT License](LICENSE)
+
+
+### GPTページをタブで開く
+
+サイドバーやページ内のGPTリンク（例：`https://chatgpt.com/g/g-h8l4uLHFQ-video-ai-by-invideo`）を通常クリックすると、分割表示内のタブで開きます。「履歴クリックを分割表示で開く」を有効にしてください。同じGPTがすでにある場合は、そのタブを表示して選択します。折りたたみ中・退避中も再利用します。
+
+GPTの紹介・開始ページと、そのGPTで作成した個々の会話は別のタブとして扱います。GPTタブ内で会話が始まると会話URLに更新されるため、GPTリンクを再度開けば開始ページを別タブで開けます。通常の新規未送信チャット同士は統合しません。GPTページも名前付きタブグループの保存・追加復元に含まれます。
+
+Ctrl・Command・AltクリックやChatGPTの操作メニューは従来の動作を維持します。GPT内の専用「新しいチャット」コマンドはChatGPT側で処理します。別ウィンドウへの分離は送信済み会話が対象です。この対応はGPTリンク向けで、デスクトップのSkills管理画面とは別です。
