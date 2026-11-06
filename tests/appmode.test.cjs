@@ -143,3 +143,11 @@ test('one double-click gesture creates one new chat while later distinct clicks 
  const h=harness();h.a.enabled(true);const b=control(h);h.a.handleNewChatClick(event(b,{detail:1}));h.a.handleNewChatClick(event(b,{detail:2}));assert.equal(h.a.state().panes.length,1);h.a.handleNewChatClick(event(b,{detail:1}));assert.equal(h.a.state().panes.length,2);
  h.a.makeOverlay();const add=h.a.ui().menuControls.add;add.emit('click',{detail:1});add.emit('click',{detail:2});assert.equal(h.a.state().panes.length,3);
 });
+
+
+test('folded controls restore independent widths and focus across multiple panes',()=>{
+ const h=harness(),panes=[320,480,1400].map((width,i)=>({id:'width'+i,title:'Pane '+i,visible:true,width,autoWidth:false,draft:'draft'+i}));
+ h.a.init(panes);h.a.enabled(true);for(const p of panes)h.a.realRender(p);
+ for(const p of panes){const e=h.a.entries().get(p.id);e.foldButton.emit('click');assert.equal(e.root.style.width,'32px');assert.equal(e.restoreButton.hidden,false);assert.equal(h.doc.activeElement,e.restoreButton);}
+ for(const p of panes){const e=h.a.entries().get(p.id);e.restoreButton.emit('click');assert.equal(e.root.style.width,p.width+'px');assert.equal(h.doc.activeElement,e.foldButton);assert.equal(p.draft,'draft'+panes.indexOf(p));}
+});
