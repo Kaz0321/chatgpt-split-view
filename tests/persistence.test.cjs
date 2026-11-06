@@ -31,3 +31,20 @@ test('initialization awaits durable restore, suppresses intermediate saves and i
  vm.createContext(ctx);let source=fs.readFileSync(require.resolve('../extension/workspace.js'),'utf8');source=source.replace('  void initialize();',`makeUI=()=>safeSave();renderPane=()=>safeSave();applyColumnWidths=()=>{};markActive=()=>safeSave();setEnabled=()=>safeSave();globalThis.api={initialize,state:()=>state};`);vm.runInContext(source,ctx);
  const first=ctx.api.initialize();await ctx.api.initialize();await new Promise(r=>setImmediate(r));assert.equal(loads,1);assert.equal(writes.length,0);assert.equal(sessionWrites.length,0);release();await first;assert.equal(ctx.api.state().panes.length,2);assert.equal(ctx.api.state().activeId,'b');assert.equal(writes.length,1);assert.equal(writes[0].snapshot.panes.length,2);await ctx.api.initialize();assert.equal(loads,1);
 });
+
+test('named groups preserve full snapshots, suffix duplicate names and never replace the current workspace',async()=>{
+ const h=harness(),c=await h.store.handle({action:'load'},1);await save(h,c);const data=raw();data.panes[0].folded=true;data.panes[0].draftBackups=['older'];
+ const request={action:'saveGroup',id:c.id,token:c.token,name:'  調査  ',snapshot:data};
+ const a=await h.store.handle(request,1),b=await h.store.handle({...request,name:'調査'},1);
+ assert.equal(a.name,'調査');assert.equal(b.name,'調査 (2)');assert.notEqual(a.id,b.id);assert.equal(h.storage.local.data[P.PREFIX+c.id].panes[0].folded,undefined);
+ const list=await h.store.handle({action:'list'},1);assert.equal(list.items.filter(x=>x.group).length,2);assert.equal(list.items.filter(x=>!x.group).length,1);assert.equal(JSON.stringify(list).includes('older'),false);
+ const restored=await h.store.handle({action:'readGroup',id:a.id},1);assert.notEqual(restored.snapshot.workspaceId,a.id);assert.equal(restored.snapshot.panes[0].draft,'unsent');assert.equal(restored.snapshot.panes[0].draftBackups[0],'older');assert.equal(restored.snapshot.panes[0].folded,true);assert.equal(restored.snapshot.panes[0].visible,false);
+ const copy=await h.store.handle({action:'load',id:restored.snapshot.workspaceId},2);await save(h,copy,{...restored.snapshot,panes:[]},1,2);assert.equal(h.storage.local.data[P.GROUP_PREFIX+a.id].panes.length,2);
+ h.storage.session=area();h.store=P.create(h.storage,h.newId);assert.equal((await h.store.handle({action:'list'},3)).items.filter(x=>x.group).length,2);
+});
+test('group validation and failed storage leave previous groups and live work intact',async()=>{
+ const h=harness(),c=await h.store.handle({action:'load'},1);await save(h,c);const req={action:'saveGroup',id:c.id,token:c.token,name:'work',snapshot:raw()};
+ for(const change of [{name:''},{name:' '.repeat(5)},{name:'x'.repeat(101)},{token:'stale'}])await assert.rejects(h.store.handle({...req,...change},1));
+ const before=structuredClone(h.storage.local.data);h.storage.local.set=async()=>{throw Error('quota')};await assert.rejects(h.store.handle(req,1),/quota/);assert.deepEqual(h.storage.local.data,before);
+ assert.equal((await h.store.handle({action:'readGroup',id:'missing'},1)).snapshot,null);
+});

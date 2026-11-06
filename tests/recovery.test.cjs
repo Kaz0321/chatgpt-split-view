@@ -52,3 +52,8 @@ test('automatic restore notice appears only when durable workspace replaces an a
   await ctx.api.initialize();assert.equal(ctx.api.hidden(),withSession);
  }
 });
+
+test('named group restoration saves current input twice and opens a copy only after both saves',async()=>{
+ const h=harness();const restore=h.a.switchWorkspace('group-id',true);h.requests[0].cb({ok:true});await tick();assert.equal(h.requests[1].m.action,'readGroup');
+ h.a.get().state.panes[0].draft='edited during group load';h.requests[1].cb({ok:true,snapshot:{workspaceId:'copy-id',panes:[]}});await tick();assert.equal(h.reloads(),0);assert.equal(h.requests[2].m.snapshot.panes[0].draft,'edited during group load');h.requests[2].cb({ok:true});assert.equal(await restore,true);assert.equal(h.sessions.at(-1).workspaceId,'copy-id');
+});

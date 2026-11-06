@@ -2,7 +2,7 @@
 (function(root){
   'use strict';
   const Core=root.CGWWCore||(typeof require==='function'?require('./core.js'):null);
-  const PREFIX='cgww.workspace.',OWNERS='cgww.workspaceOwners';
+  const PREFIX='cgww.workspace.',OWNERS='cgww.workspaceOwners',GROUP_PREFIX='cgww.group.';
   const validId=id=>typeof id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
   const hostIdentity=value=>{try{const url=new URL(value);return url.origin+'|'+(url.searchParams.get('hostId')||'');}catch{return null;}};
   function snapshot(raw,id,newId){
@@ -31,7 +31,22 @@
       }
       if(message.action==='list'){
         const all=await storage.local.get(null);
-        return {ok:true,items:Object.entries(all).filter(([key,value])=>key.startsWith(PREFIX)&&Array.isArray(value?.panes)).map(([,s])=>({id:s.workspaceId,title:s.panes[0]?.title||'保存した作業',count:s.panes.length,savedAt:s.savedAt||0})).sort((a,b)=>b.savedAt-a.savedAt)};
+        return {ok:true,items:Object.entries(all).filter(([key,value])=>(key.startsWith(PREFIX)||key.startsWith(GROUP_PREFIX))&&Array.isArray(value?.panes)).map(([,s])=>({id:s.workspaceId,group:!!s.groupName,title:s.groupName||s.panes[0]?.title||'以前の作業',count:s.panes.length,savedAt:s.savedAt||0})).sort((a,b)=>b.savedAt-a.savedAt)};
+      }
+      if(message.action==='saveGroup'){
+        const owner=owners[tabId];
+        if(!owner||owner.token!==message.token||owner.id!==message.id)throw Error('Stale workspace writer');
+        const base=typeof message.name==='string'?message.name.trim().normalize('NFKC'):'';
+        if(!base||base.length>100)throw Error('Invalid group name');
+        const all=await storage.local.get(null),names=new Set(Object.entries(all).filter(([key])=>key.startsWith(GROUP_PREFIX)).map(([,value])=>(value.groupName||'').toLocaleLowerCase()));
+        let name=base,n=2;while(names.has(name.toLocaleLowerCase())){const suffix=` (${n++})`;name=base.slice(0,100-suffix.length)+suffix;}
+        const id=newId(),saved={...snapshot(message.snapshot,id,newId),groupName:name,hostUrl:owner.hostUrl};
+        await storage.local.set({[GROUP_PREFIX+id]:saved});return {ok:true,id,name};
+      }
+      if(message.action==='readGroup'){
+        if(!validId(message.id))throw Error('Invalid group ID');
+        const saved=(await storage.local.get(GROUP_PREFIX+message.id))[GROUP_PREFIX+message.id];
+        return {ok:true,snapshot:saved?{...saved,workspaceId:newId(),savedAt:Date.now()}:null};
       }
       if(message.action==='read'){
         if(!validId(message.id))throw Error('Invalid workspace ID');
@@ -48,5 +63,5 @@
     }
     return {handle(message,tabId,hostUrl=Core.ORIGIN+'/'){const task=queue.then(()=>run(message,tabId,hostUrl));queue=task.catch(()=>{});return task;},release(tabId){const task=queue.then(async()=>{const owners=(await storage.session.get(OWNERS))[OWNERS]||{};delete owners[tabId];await storage.session.set({[OWNERS]:owners});});queue=task.catch(()=>{});return task;}};
   }
-  const api={create,snapshot,PREFIX,OWNERS};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CGWWPersistence=api;
+  const api={create,snapshot,PREFIX,OWNERS,GROUP_PREFIX};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CGWWPersistence=api;
 })(globalThis);

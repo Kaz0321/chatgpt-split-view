@@ -329,6 +329,8 @@
       if (entry) {
         entry.root.style.width = `${getPaneWidth(pane)}px`;
         entry.root.classList.toggle('folded',pane.folded===true);
+        if(entry.restoreButton)entry.restoreButton.hidden=!pane.folded;
+        if(entry.foldButton)entry.foldButton.setAttribute('aria-expanded',String(!pane.folded));
         if(entry.spine){entry.spine.setAttribute('aria-label',`${pane.title} を${pane.folded?'展開':'折りたたむ'}`);entry.spine.setAttribute('aria-expanded',String(!pane.folded));entry.spine.firstChild.textContent=pane.title;}
       }
     }
@@ -357,7 +359,7 @@
       };
       try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(snapshot));}
       catch{setStatus('このタブ内の保存に失敗しました。再起動用の保存は継続します。',true);}
-      pendingSnapshot=snapshot;if(durableToken)void flushWorkspace();else{saveProblem=true;updateRecoveryUI();}
+      pendingSnapshot=snapshot;if(durableToken)void flushWorkspace();else{saveProblem=true;updateRecoveryUI();}return snapshot;
     } catch { setStatus('このタブの状態を保存できませんでした。', true); }
   }
 
@@ -400,13 +402,13 @@
     }catch{saveProblem=true;updateRecoveryUI();return false;}
   }
 
-  async function switchWorkspace(id=null) {
+  async function switchWorkspace(id=null,group=false) {
     if(switching)return false;
     if(!confirm('現在の作業を保存して切り替えます。添付ファイル・生成中の処理は復元できません。キャンセルすると現在の作業を続けられます。'))return false;
     switching=true;
     try{
       captureDrafts();if(!await flushWorkspace())return false;
-      const result=id?await durableRequest({action:'read',id}):{snapshot:{schemaVersion:2,workspaceId:newId(),enabled:true,settings,panes:[],closedPanes:[],savedAt:Date.now()}};
+      const result=id?await durableRequest({action:group?'readGroup':'read',id}):{snapshot:{schemaVersion:2,workspaceId:newId(),enabled:true,settings,panes:[],closedPanes:[],savedAt:Date.now()}};
       if(!result.snapshot)throw Error('Missing workspace');
       // Capture edits made while the read/save was pending; no await after final save.
       captureDrafts();if(!await flushWorkspace())return false;
@@ -415,16 +417,31 @@
     finally{switching=false;}
   }
 
+  async function saveNamedGroup() {
+    if(switching)return;
+    const name=menuControls.groupName.value.trim();
+    if(!name||name.normalize('NFKC').length>100){menuControls.groupStatus.textContent='グループ名を1〜100文字で入力してください。';menuControls.groupName.focus();return;}
+    switching=true;menuControls.groupSave.disabled=true;
+    try{
+      const snapshot=captureDrafts();
+      if(!snapshot||!await flushWorkspace())throw Error('Save failed');
+      const result=await durableRequest({action:'saveGroup',id:workspaceId,token:durableToken,name,snapshot});
+      menuControls.groupStatus.textContent=`「${result.name}」を保存しました。現在のタブはそのままです。`;
+      await showSavedWorkspaces();
+    }catch{menuControls.groupStatus.textContent='保存を確認できませんでした。現在のタブは保持しています。一覧を再表示して保存結果を確認してください。';}
+    finally{switching=false;menuControls.groupSave.disabled=false;}
+  }
+
   async function showSavedWorkspaces() {
     const list=menuControls.savedList;list.replaceChildren();
     try{const result=await durableRequest({action:'list'});
       for(const item of result.items.filter(item=>item.id!==workspaceId)){
-        const restore=button(`${item.title} (${item.count}列) — ${new Date(item.savedAt).toLocaleString()}`,'保存した作業を復元',async()=>{
-          await switchWorkspace(item.id);
+        const restore=button(`${item.title} (${item.count}タブ)${item.group?'':'・以前の作業'} — ${new Date(item.savedAt).toLocaleString()}`,'保存済みタブグループを復元',async()=>{
+          await switchWorkspace(item.id,item.group);
         });restore.style.whiteSpace='normal';list.appendChild(restore);
       }
-      if(!list.children.length)list.appendChild(create('p','','ほかの保存済み作業はありません。'));
-    }catch{list.appendChild(create('p','','保存済み作業を読み込めませんでした。'));}
+      if(!list.children.length)list.appendChild(create('p','','保存済みタブグループはありません。'));
+    }catch{list.appendChild(create('p','','保存済みタブグループを読み込めませんでした。'));}
   }
 
   async function savePrefs() {
@@ -459,12 +476,12 @@
       .overlay button:hover{background:#e5edf5;border-color:#cad6e1}.overlay .overlay-grip{width:20px;padding:0;cursor:move;touch-action:none}
       .overlay-menu{position:fixed;z-index:2147483647;width:300px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;border:1px solid #aebdcd;border-radius:8px;background:#fff;color:#243b51;padding:12px;font:12px/1.5 system-ui;pointer-events:auto}
       [hidden]{display:none!important}.overlay-menu h3{font-size:13px;margin:0}.overlay-menu .menu-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
-      .sidebar-resize{position:fixed;top:0;bottom:0;width:7px;z-index:2147483647;cursor:col-resize;touch-action:none;pointer-events:auto;background:transparent}.sidebar-resize:hover{background:#4c91df66}.sidebar-resize[aria-disabled=true]{cursor:default;pointer-events:none}.overlay-menu .menu-row{display:flex;align-items:center;gap:6px;margin-top:9px}.overlay-menu label{flex:1}.parked-title{flex:1;min-width:0;overflow-wrap:anywhere}.overlay-menu textarea{width:100%;min-height:90px}.overlay-menu h3{margin-top:12px}.overlay-menu button,.overlay-menu input,.overlay-menu select{font:inherit;color:inherit;min-height:30px;border:1px solid #c8d3df;border-radius:5px;background:#f8fafc;padding:4px 7px}.overlay-menu button:hover{background:#e5edf5}.overlay-menu input[type=number]{width:76px}.overlay-menu input[type=checkbox]{min-height:0;accent-color:#347ed5}.overlay-menu select{min-width:0;flex:1;max-width:205px}.overlay-menu :disabled{opacity:.5;cursor:default}.overlay-note{font-size:10px;color:#62748a;margin:8px 0 0}
+      .sidebar-resize{position:fixed;top:0;bottom:0;width:7px;z-index:2147483647;cursor:col-resize;touch-action:none;pointer-events:auto;background:transparent}.sidebar-resize:hover{background:#4c91df66}.sidebar-resize[aria-disabled=true]{cursor:default;pointer-events:none}.overlay-menu .menu-row{display:flex;align-items:center;gap:6px;margin-top:9px}.overlay-menu label{flex:1}.parked-title{flex:1;min-width:0;overflow-wrap:anywhere}.overlay-menu input[type=text]{min-width:0;width:100%;flex:1}.overlay-menu h3{margin-top:12px}.overlay-menu button,.overlay-menu input,.overlay-menu select{font:inherit;color:inherit;min-height:30px;border:1px solid #c8d3df;border-radius:5px;background:#f8fafc;padding:4px 7px}.overlay-menu button:hover{background:#e5edf5}.overlay-menu input[type=number]{width:76px}.overlay-menu input[type=checkbox]{min-height:0;accent-color:#347ed5}.overlay-menu select{min-width:0;flex:1;max-width:205px}.overlay-menu :disabled{opacity:.5;cursor:default}.overlay-note{font-size:10px;color:#62748a;margin:8px 0 0}
       .board{position:fixed;inset:0 0 0 auto;z-index:2147483645;display:flex;flex-direction:column;background:#e9eef4;color:#1c3048;font:12px system-ui;pointer-events:auto}
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
       .scroller{flex:1;min-height:0;display:flex;gap:7px;padding:9px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
-      .pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{width:100%}.pane.folded .pane-spine span{display:block;position:absolute;left:50%;top:50%;width:calc(100vh - 100px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform:translate(-50%,-50%) rotate(-90deg);font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:absolute;top:2px;left:2px;width:28px;height:28px;z-index:3;border:1px solid #9aafc5;border-radius:4px;background:#fff;color:#243b51;cursor:pointer}.pane-restore:focus-visible{outline:2px solid #347ed5}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{width:100%}.pane.folded .pane-spine span{display:block;position:absolute;left:50%;top:50%;width:calc(100vh - 160px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform:translate(-50%,-50%) rotate(-90deg);font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
       .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
       .pane-control{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:3px;height:24px;min-width:24px;padding:0 5px;border:1px solid transparent;border-radius:4px;background:transparent;color:#526579;font-size:12px;line-height:1;vertical-align:middle}
       .pane-control:hover{border-color:#d7e1eb;background:#edf2f7;color:#243b51}.pane-control:active{background:#dfe8f1}
@@ -521,23 +538,16 @@
     menuControls.sidebar.value=String(settings.sidebarWidth);menuControls.sidebar.disabled=settings.sidebarLocked;menuControls.sidebarApply.disabled=settings.sidebarLocked;menuControls.sidebarReset.disabled=settings.sidebarLocked;
     menuControls.sidebarLock.textContent=settings.sidebarLocked?'ロック解除':'ロック';menuControls.sidebarLock.setAttribute('aria-pressed',String(settings.sidebarLocked));
     menuControls.parkedList.replaceChildren();
-    const parked=state.panes.filter(p=>!p.visible);
-    menuControls.parkedHeading.textContent=`退避中 (${parked.length})`;
+    const parked=state.panes;
+    menuControls.parkedHeading.textContent=`タブ一覧 (${parked.length})`;
     for(const p of parked){
       const row=create('div','menu-row'),name=create('span','parked-title',p.title);
-      const restore=button('戻す',`${p.title} を復元`,()=>restoreParkedPane(p));restore.disabled=!state.enabled;
-      row.append(name,restore);menuControls.parkedList.appendChild(row);
+      const status=create('span','tab-state',`${!p.visible?'退避中':p.folded?'折りたたみ中':'表示中'}${p.id===state.activeId?'・選択中':''}${!state.enabled?'・分割表示休止中':''}`);
+      const restore=button(!p.visible||p.folded?'復元':'選択',`${p.title} を${!p.visible||p.folded?'復元':'選択'}`,()=>{selectConversation(p);paneNodes.get(p.id)?.foldButton?.focus();});restore.disabled=!state.enabled;
+      row.append(name,status,restore);
+      if(p.visible&&!p.folded){const fold=button('_',`${p.title} を折りたたむ`,()=>setPaneFolded(p,true));fold.setAttribute('aria-label',`${p.title} を折りたたむ`);fold.disabled=!state.enabled;row.appendChild(fold);}menuControls.parkedList.appendChild(row);
     }
-    if(!parked.length)menuControls.parkedList.appendChild(create('p','','退避中の会話はありません。'));
-    menuControls.draftList.replaceChildren();
-    for(const p of state.panes.filter(p=>p.draft||p.draftBackups?.length)){
-      const row=create('div','menu-row');row.appendChild(button(`${p.title} の下書きを比較`,'現在と保存済みの下書きを表示',()=>{
-        row.replaceChildren();
-        const show=(value,label)=>{const field=create('textarea');field.readOnly=true;field.value=value;field.setAttribute('aria-label',label);row.append(create('span','',label),field,button('コピー用に選択',label+'を選択',()=>{field.focus();field.select();}));};
-        show(p.draft||'','現在の入力');
-        for(const backup of p.draftBackups||[]){show(backup,'保持した下書き');row.appendChild(button('この下書きを破棄','表示した保存済み下書きを破棄',()=>{p.draftBackups=p.draftBackups.filter(x=>x!==backup);safeSave();syncOverlay();}));}
-      }));menuControls.draftList.appendChild(row);
-    }
+    if(!parked.length)menuControls.parkedList.appendChild(create('p','','タブはありません。'));
     if(menuControls.historyEntry)menuControls.historyEntry.textContent=`閉じた履歴 (${closedPanes.length})`;
     renderClosedHistory();
     placeOverlay();
@@ -570,6 +580,12 @@
     shadow.appendChild(sidebarHandle);
   }
 
+  function setPaneFolded(p,folded) {
+    p.folded=Boolean(folded);state.activeId=p.id;applyColumnWidths();markActive();safeSave();syncOverlay();
+    const entry=paneNodes.get(p.id);
+    (p.folded?entry?.restoreButton:entry?.foldButton)?.focus();
+  }
+
   function restoreParkedPane(p) {
     p.visible=true;state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();syncOverlay();
   }
@@ -589,7 +605,7 @@
 
   function captureDrafts() {
     for(const entry of paneNodes.values())entry.iframe?._cgwwDraftRecovery?.capture();
-    safeSave();
+    return safeSave();
   }
 
   function renderClosedHistory() {
@@ -672,12 +688,12 @@
     overlay=create('div','overlay');overlay.setAttribute('role','group');overlay.setAttribute('aria-label','Split View 操作');
     saveBadge=button('未保存・再試行','最新状態の保存を再試行',retryWorkspaceSave);saveBadge.setAttribute('aria-live','polite');
     undoButton=button('閉じた列を元に戻す','30秒以内のテキスト復元。添付・生成中状態は対象外',undoClose);
-    restoreBadge=button('前回の作業を復元しました・新しい作業','保存して新しい作業を開始',()=>switchWorkspace());
+    restoreBadge=create('div','overlay-note');const restoredText=create('p','','前回の作業を復元しました。');restoredText.setAttribute('role','status');restoreBadge.append(restoredText,button('通知を閉じる','復元の通知だけを閉じる。作業はそのまま保持',()=>{autoRestored=false;updateRecoveryUI();menuControls.close.focus();}));
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
     launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
-    viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton,restoreBadge);updateRecoveryUI();shadow.appendChild(overlay);
+    viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
     const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
     const row=()=>{const e=create('div','menu-row');overlayMenu.appendChild(e);return e;};
@@ -689,13 +705,17 @@
     const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
     const sidebarLock=button('ロック','左一覧の幅変更をロック・解除',()=>{settings.sidebarLocked=!settings.sidebarLocked;updateGeometry();savePrefs();safeSave();syncOverlay();});sidebarLock.setAttribute('aria-label','左一覧幅のロック');
     sideRow.append(create('label','','左一覧幅 (px)'),sidebar,sidebarApply);row().append(sidebarReset,sidebarLock);
-    const parkedHeading=create('h3','','退避中 (0)'),parkedList=create('div'),draftList=create('div');overlayMenu.append(parkedHeading,parkedList,draftList);
+    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');overlayMenu.append(parkedHeading,parkedList,restoreBadge,create('h3','','タブグループの保存と復元'));
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
-    row().appendChild(button('新しい作業を開始','現在の作業を保存して新規開始',()=>switchWorkspace()));
-    row().appendChild(button('保存した作業を復元','ブラウザ再起動後の作業を選ぶ',showSavedWorkspaces));const savedList=create('div');overlayMenu.appendChild(savedList);
+    overlayMenu.appendChild(create('p','overlay-note','現在のタブの組み合わせを名前付きで保存します。同名は連番で保存し、上書きしません。復元時は現在の作業を保存して切り替えます。'));
+    const groupName=create('input');groupName.type='text';groupName.maxLength=100;groupName.setAttribute('aria-label','タブグループ名');groupName.placeholder='タブグループ名';
+    const groupSave=button('名前を付けて保存','現在のタブグループをコピーして保存',saveNamedGroup);row().append(groupName,groupSave);
+    const groupStatus=create('p','overlay-note');groupStatus.setAttribute('role','status');overlayMenu.appendChild(groupStatus);
+    row().appendChild(button('保存済みタブグループを表示','名前付きグループと以前の作業の一覧を表示',showSavedWorkspaces));const savedList=create('div');overlayMenu.appendChild(savedList);
+    overlayMenu.appendChild(create('p','overlay-note','その他の設定では本文余白・既定の表示設定・設定JSONの入出力を変更できます。'));
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,draftList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -1047,21 +1067,23 @@
     const root = create('article', 'pane');
     root.style.width = `${getPaneWidth(p)}px`;
     root.hidden = !p.visible;
-    const spine=button('','列を折りたたむ / 展開',()=>{p.folded=!p.folded;state.activeId=p.id;applyColumnWidths();markActive();safeSave();},'pane-spine');
+    const spine=button('','列を折りたたむ / 展開',()=>setPaneFolded(p,!p.folded),'pane-spine');
     spine.appendChild(create('span','',p.title));root.appendChild(spine);
+    const restoreButton=button('□','この列を元の幅に復元',()=>setPaneFolded(p,false),'pane-restore');restoreButton.setAttribute('aria-label','この列を復元');root.appendChild(restoreButton);
     const head = create('div', 'pane-head');
     const grip=button('⠿','列をドラッグで移動',()=>{state.activeId=p.id;markActive();},'pane-control drag-grip');head.appendChild(grip);
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
     head.appendChild(index);
     const title = create('input', 'pane-title');
     title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '表示名を編集'; title.setAttribute('aria-label', '列の表示名');
-    title.addEventListener('change', () => { p.title = Core.normalizeTitle(title.value); title.value = p.title; applyColumnWidths();safeSave(); });
+    title.addEventListener('change', () => { p.title = Core.normalizeTitle(title.value); title.value = p.title; applyColumnWidths();safeSave();syncOverlay(); });
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
     const foot=create('span','pane-status');setPaneStatus(foot,'会話URL未指定');head.appendChild(foot);
     const reloadButton=button('↻ 更新','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-control pane-reload');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
     const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は退避して保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
-    const parkButton=button('_','この列を一時退避（iframeを保持）',()=>parkPane(p),'pane-control pane-park');parkButton.setAttribute('aria-label','この列を退避');head.appendChild(parkButton);
+    const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
+    const parkButton=button('退避','この列を一時退避（iframeを保持）',()=>parkPane(p),'pane-control pane-park');parkButton.setAttribute('aria-label','この列を退避');head.appendChild(parkButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
     const main = create('div', 'pane-main');
@@ -1098,7 +1120,7 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine });
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton });
     attachPaneDrag(root,grip,p);syncPaneOrder();applyColumnWidths();
   }
 

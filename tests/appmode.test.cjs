@@ -5,6 +5,7 @@ function harness(extra={}) {
   let doc;
   class Element {
     constructor(tag='div'){this.tagName=tag.toUpperCase();this.attributes={};this.listeners={};this.children=[];this.style={};this.dataset={};this.hidden=false;this.value='';this.textContent='';this.ownerDocument=doc;this.offsetWidth=154;this.offsetHeight=36;this.classList={toggle(){},add(){},remove(){}};}
+    get firstChild(){return this.children[0];} remove(){}
     appendChild(e){this.children.push(e);e.parentElement=this;return e;} append(...es){es.forEach(e=>this.appendChild(e));} replaceChildren(...es){this.children=[];this.value='';this.append(...es);}
     addEventListener(t,f){(this.listeners[t]??=[]).push(f);} setAttribute(k,v){this.attributes[k]=String(v);} getAttribute(k){return this.attributes[k]??null;} hasAttribute(k){return k in this.attributes;}
     closest(s){if(s.includes('[role="menu"]')||s.includes('[data-radix-menu-content]'))return null;return this.control||this;} focus(){doc.activeElement=this;} setPointerCapture(){} checkValidity(){return Number(this.value)>=320&&Number(this.value)<=Number(this.max);}
@@ -13,8 +14,8 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`globalThis.api={newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
-    init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller={clientWidth:724,scrollWidth:2400};renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+    init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
 }
@@ -86,7 +87,7 @@ test('Escape and outside pointer dismissal close only the menu and permit reopen
 test('parked titles and restore buttons are directly present without nested disclosure',()=>{
  const h=harness(),p={id:'parked',title:'Named parked conversation',url:Core.ORIGIN+'/',newChat:true,width:480,visible:false};h.a.init([p]);h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();
  assert.equal(u.menuControls.parkedList.hidden,false);assert.equal(u.menuControls.parkedList.children[0].children[0].textContent,p.title);assert.equal(u.menuControls.parkedEntry,undefined);
- u.menuControls.parkedList.children[0].children[1].emit('click');assert.equal(p.visible,true);assert.equal(h.a.state().panes[0],p);assert.equal(p.width,480);
+ u.menuControls.parkedList.children[0].children[2].emit('click');assert.equal(p.visible,true);assert.equal(h.a.state().panes[0],p);assert.equal(p.width,480);
 });
 test('restoring empty or all-parked workspace never creates an extra conversation',()=>{
  const h=harness();h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,0);const p={id:'parked',visible:false};h.a.init([p]);h.a.setEnabled(true,true);assert.equal(h.a.state().panes.length,1);assert.equal(p.visible,false);
@@ -115,4 +116,24 @@ test('hidden sidebar releases all width and restores width and lock with all pan
  const h=harness();h.a.makeOverlay();h.a.makeSidebarResize();h.a.enabled(true);h.a.init([{id:'park',visible:false,width:450}]);h.a.prefs({sidebarWidth:380,sidebarLocked:true});
  h.a.toggleSidebar();assert.equal(h.a.sidebarWidth(),0);assert.equal(h.a.settings().sidebarWidth,380);assert.equal(h.a.settings().sidebarLocked,true);assert.equal(h.saves.at(-1).settings.sidebarVisible,false);assert.equal(h.a.ui().sidebarHandle.hidden,true);assert.equal(h.a.ui().overlay.hidden,false);
  h.a.toggleSidebar();assert.equal(h.a.sidebarWidth(),380);assert.equal(h.a.settings().sidebarLocked,true);assert.equal(h.a.state().panes.length,1);assert.equal(h.a.state().panes[0].visible,false);
+});
+
+test('fold and restore buttons keep the document, draft, width and keyboard focus',()=>{
+ const h=harness(),p={id:'a',title:'A',visible:true,width:480,autoWidth:false,draft:'unsent'};
+ h.a.init([p]);h.a.enabled(true);h.a.realRender(p);const entry=h.a.entries().get('a');
+ const frame={draft:'live input'};entry.iframe=frame;
+ entry.foldButton.emit('click');assert.equal(p.folded,true);assert.equal(p.visible,true);assert.equal(entry.root.style.width,'32px');assert.equal(h.doc.activeElement,entry.restoreButton);assert.equal(entry.restoreButton.hidden,false);
+ entry.restoreButton.emit('click');assert.equal(p.folded,false);assert.equal(entry.root.style.width,'480px');assert.equal(h.doc.activeElement,entry.foldButton);assert.equal(entry.restoreButton.hidden,true);assert.equal(entry.iframe,frame);assert.equal(frame.draft,'live input');assert.equal(p.draft,'unsent');
+ assert.equal(h.saves.at(-1).panes[0].width,480);
+});
+test('all-tab menu shows displayed folded parked and paused states and restores the selected pane only',()=>{
+ const h=harness(),panes=[{id:'a',title:'A',visible:true},{id:'b',title:'B',visible:true,folded:true,width:510,draft:'keep'},{id:'c',title:'C',visible:false}];
+ h.a.init(panes);h.a.enabled(true);h.a.makeOverlay();const list=h.a.ui().menuControls.parkedList;
+ assert.equal(list.children.length,3);assert.match(list.children[0].children[1].textContent,/表示中/);assert.match(list.children[1].children[1].textContent,/折りたたみ中/);assert.match(list.children[2].children[1].textContent,/退避中/);
+ list.children[1].children[2].emit('click');assert.equal(panes[1].folded,false);assert.equal(panes[1].draft,'keep');assert.equal(panes[2].visible,false);assert.match(list.children[1].children[1].textContent,/選択中/);
+ h.a.enabled(false);h.a.syncOverlay();assert(list.children.every(row=>row.children[2].disabled));assert.match(list.children[0].children[1].textContent,/分割表示休止中/);
+});
+test('restore notice lives in menu and dismisses without saving, switching or dropping panes',()=>{
+ const h=harness(),p={id:'a',title:'A',visible:true,draft:'keep'};h.a.init([p]);h.a.makeOverlay();const notice=h.a.notice(),u=h.a.ui(),before=h.saves.length;
+ assert.equal(notice.parentElement,u.overlayMenu);assert.equal(notice.hidden,false);notice.children[1].emit('click');assert.equal(notice.hidden,true);assert.equal(h.saves.length,before);assert.equal(h.a.state().panes[0],p);assert.equal(p.draft,'keep');assert.equal(h.doc.activeElement,u.menuControls.close);
 });
