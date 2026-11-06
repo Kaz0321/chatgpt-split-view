@@ -15,13 +15,13 @@ function harness(){
  }
  return {boot,data,session,store,fail:()=>fail=true,clearTabSession:()=>{delete session['cgww.v1.workspace']}};
 }
-test('real initialization + group save/read + reload preserves legacy drafts and protects original group',async()=>{
+test('real initialization + group save/merge + reload preserves legacy drafts and protects original group',async()=>{
  const h=harness(),old=await h.boot();assert.equal(old.a.id(),'legacy');assert.equal(old.a.state().panes[0].draftBackups[0],'older');
  await old.a.saveNamedGroup();await old.a.saveNamedGroup();const items=(await h.store.handle({action:'list'},1)).items;
  assert.deepEqual(items.filter(x=>x.group).map(x=>x.title).sort(),['Research','Research (2)']);assert(items.some(x=>x.id==='legacy'&&!x.group));
  const group=items.find(x=>x.title==='Research');old.a.state().panes[0].draft='latest current input';
- assert.equal(await old.a.switchWorkspace(group.id,true),true);assert.equal(old.reloads(),1);assert.equal(h.data[P.PREFIX+'legacy'].panes[0].draft,'latest current input');
- const restored=await h.boot();assert.notEqual(restored.a.id(),group.id);assert.notEqual(restored.a.id(),'legacy');assert.equal(restored.a.state().panes[0].draft,'before');assert.equal(restored.a.state().panes[0].draftBackups[0],'older');assert.equal(restored.a.state().panes[1].folded,true);assert.equal(restored.a.state().panes[2].visible,false);assert.equal(restored.a.state().panes[1].width,510);assert.equal(restored.a.state().activeId,'b');
+ assert.equal(await old.a.switchWorkspace(group.id,true),true);assert.equal(old.reloads(),0);assert.equal(h.data[P.PREFIX+'legacy'].panes[0].draft,'latest current input');
+ const restored=await h.boot();assert.notEqual(restored.a.id(),group.id);assert.equal(restored.a.id(),'legacy');assert.equal(restored.a.state().panes[0].draft,'latest current input');assert.equal(restored.a.state().panes[0].draftBackups[0],'older');assert.equal(restored.a.state().panes[1].folded,undefined);assert.equal(restored.a.state().panes[2].visible,false);assert.equal(restored.a.state().panes[1].width,510);assert.equal(restored.a.state().activeId,'b');
  restored.a.state().panes[0].draft='edit copy';restored.a.captureDrafts();await restored.a.flushWorkspace();assert.equal(h.data[P.GROUP_PREFIX+group.id].panes[0].draft,'before');
  h.clearTabSession();const restarted=await h.boot();assert.equal(restarted.a.state().panes[0].draft,'edit copy');assert.equal((await h.store.handle({action:'list'},1)).items.filter(x=>x.group).length,2);
 });

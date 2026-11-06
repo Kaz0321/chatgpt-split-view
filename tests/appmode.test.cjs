@@ -137,3 +137,9 @@ test('restore notice lives in menu and dismisses without saving, switching or dr
  const h=harness(),p={id:'a',title:'A',visible:true,draft:'keep'};h.a.init([p]);h.a.makeOverlay();const notice=h.a.notice(),u=h.a.ui(),before=h.saves.length;
  assert.equal(notice.parentElement,u.overlayMenu);assert.equal(notice.hidden,false);notice.children[1].emit('click');assert.equal(notice.hidden,true);assert.equal(h.saves.length,before);assert.equal(h.a.state().panes[0],p);assert.equal(p.draft,'keep');assert.equal(h.doc.activeElement,u.menuControls.close);
 });
+
+
+test('one double-click gesture creates one new chat while later distinct clicks remain independent',()=>{
+ const h=harness();h.a.enabled(true);const b=control(h);h.a.handleNewChatClick(event(b,{detail:1}));h.a.handleNewChatClick(event(b,{detail:2}));assert.equal(h.a.state().panes.length,1);h.a.handleNewChatClick(event(b,{detail:1}));assert.equal(h.a.state().panes.length,2);
+ h.a.makeOverlay();const add=h.a.ui().menuControls.add;add.emit('click',{detail:1});add.emit('click',{detail:2});assert.equal(h.a.state().panes.length,3);
+});

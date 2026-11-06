@@ -402,7 +402,47 @@
     }catch{saveProblem=true;updateRecoveryUI();return false;}
   }
 
+  function mergeGroupPanes(snapshot) {
+    const incoming=Core.restoreWorkspacePanes(snapshot.panes,newId),used=new Set(state.panes.map(p=>p.id)),plans=[];
+    for(const saved of incoming){
+      const key=Core.conversationKey(saved.url);
+      const existing=key?findConversation(saved.url):state.panes.find(p=>p.id===saved.id&&(saved.newChat||(!Core.conversationKey(p.url)&&p.url===saved.url)));
+      if(existing){plans.push({saved,pane:existing,existing:true});continue;}
+      const pane={...saved};if(used.has(pane.id))pane.id=newId();used.add(pane.id);plans.push({saved,pane,existing:false});
+    }
+    if(state.panes.length+plans.filter(x=>!x.existing).length>200)throw Error('200列の上限です。現在のタブは変更していません。');
+    for(const {saved,pane,existing} of plans){
+      if(existing){
+        // Never replace a live document or its current input with an older snapshot.
+        const backups=[...(pane.draftBackups||[]),...(saved.draftBackups||[]),saved.draft].filter(x=>typeof x==='string'&&x&&x!==pane.draft);
+        if(backups.length)pane.draftBackups=[...new Set(backups)];
+        if(saved.visible){pane.visible=true;pane.folded=false;}
+      }else state.panes.push(pane);
+      renderPane(pane);
+    }
+    const selected=plans[Core.restoredActiveIndex(snapshot,incoming)]?.pane;
+    if(selected)state.activeId=selected.id;
+    syncPaneOrder();applyColumnWidths();markActive();syncOverlay();updateFallbackDock();safeSave();
+    return plans;
+  }
+
+  async function restoreNamedGroup(id) {
+    if(switching)return false;
+    if(!confirm('現在のタブと入力を保持し、グループにある不足分だけ追加します。同じ会話は既存の列を利用します。続けますか？'))return false;
+    switching=true;
+    try{
+      captureDrafts();if(!await flushWorkspace())return false;
+      const {snapshot}=await durableRequest({action:'readGroup',id});if(!snapshot)throw Error('グループが見つかりません。');
+      captureDrafts();if(!await flushWorkspace())return false;
+      mergeGroupPanes(snapshot);
+      if(!await flushWorkspace()){setStatus('タブは保持していますが復元後の保存を確認できません。未保存・再試行を使ってください。',true);return false;}
+      setStatus('グループを復元しました。同じ会話は既存の列を利用しています。');return true;
+    }catch(e){setStatus(e.message||'復元できませんでした。現在のタブを保持しています。',true);return false;}
+    finally{switching=false;}
+  }
+
   async function switchWorkspace(id=null,group=false) {
+    if(group)return restoreNamedGroup(id);
     if(switching)return false;
     if(!confirm('現在の作業を保存して切り替えます。添付ファイル・生成中の処理は復元できません。キャンセルすると現在の作業を続けられます。'))return false;
     switching=true;
@@ -691,7 +731,7 @@
     restoreBadge=create('div','overlay-note');const restoredText=create('p','','前回の作業を復元しました。');restoredText.setAttribute('role','status');restoreBadge.append(restoredText,button('通知を閉じる','復元の通知だけを閉じる。作業はそのまま保持',()=>{autoRestored=false;updateRecoveryUI();menuControls.close.focus();}));
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
     launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
-    const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',()=>{if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
+    const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
     viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
@@ -708,7 +748,7 @@
     const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');overlayMenu.append(parkedHeading,parkedList,restoreBadge,create('h3','','タブグループの保存と復元'));
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
-    overlayMenu.appendChild(create('p','overlay-note','現在のタブの組み合わせを名前付きで保存します。同名は連番で保存し、上書きしません。復元時は現在の作業を保存して切り替えます。'));
+    overlayMenu.appendChild(create('p','overlay-note','現在のタブの組み合わせを名前付きで保存します。同名は連番で保存し、上書きしません。グループ復元は既存タブを保持し、不足分だけ追加します。以前の作業は保存して切り替えます。'));
     const groupName=create('input');groupName.type='text';groupName.maxLength=100;groupName.setAttribute('aria-label','タブグループ名');groupName.placeholder='タブグループ名';
     const groupSave=button('名前を付けて保存','現在のタブグループをコピーして保存',saveNamedGroup);row().append(groupName,groupSave);
     const groupStatus=create('p','overlay-note');groupStatus.setAttribute('role','status');overlayMenu.appendChild(groupStatus);
@@ -819,7 +859,7 @@
     if(isNativeActionMenuEvent(event))return false;
     if(!state.enabled||!settings.interceptSidebar||event.button!==0||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
     if(!newChatControl(event))return false;
-    event.preventDefault();event.stopImmediatePropagation();addNewChat();return true;
+    event.preventDefault();event.stopImmediatePropagation();if(event.detail>1)return true;addNewChat();return true;
   }
 
   function emptyPane() {
