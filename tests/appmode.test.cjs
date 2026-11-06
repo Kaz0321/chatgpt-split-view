@@ -161,3 +161,20 @@ test('legacy parked tab returns from list and then uses only the fold control',(
  assert.equal(e.root.children.some(x=>x.className==='pane-control pane-park'),false);
  e.foldButton.emit('click');assert.equal(p.visible,true);assert.equal(p.folded,true);assert.equal(p.draft,'saved input');assert.equal(h.a.state().panes.length,1);
 });
+
+
+test('approved left menu keeps actions outside and settings in a closed native disclosure',()=>{
+ const h=harness();h.a.makeOverlay();const u=h.a.ui(),c=u.menuControls;
+ assert.equal(c.displaySettings.tagName,'DETAILS');assert.equal(c.displaySettings.hasAttribute('open'),false);assert.equal(c.displaySettings.firstChild.tagName,'SUMMARY');
+ assert.equal(c.tabsSection.parentElement,u.overlayMenu);assert.equal(c.groupsSection.parentElement,u.overlayMenu);
+ assert(u.overlayMenu.children.indexOf(c.tabsSection)<u.overlayMenu.children.indexOf(c.groupsSection));assert(u.overlayMenu.children.indexOf(c.groupsSection)<u.overlayMenu.children.indexOf(c.displaySettings));
+ for(const action of [u.launcher,c.add,c.sidebarVisible,u.viewToggle])assert.equal(action.parentElement,u.overlay);
+ assert.equal(c.width.parentElement.parentElement,c.displaySettings);assert.equal(c.groupName.parentElement.parentElement,c.groupsSection);
+});
+
+test('left menu clamps narrow viewport and preserves long titles and tab statuses',()=>{
+ const h=harness();h.ctx.innerWidth=240;h.ctx.innerHeight=300;const title='長い会話タイトル'.repeat(20);
+ h.a.init([{id:'long',title,visible:true,folded:true}]);h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();u.launcher.emit('click');h.a.placeOverlay();
+ assert.equal(u.overlayMenu.style.width,'224px');assert(parseFloat(u.overlayMenu.style.left)+224<=240);assert(parseFloat(u.overlayMenu.style.top)+parseFloat(u.overlayMenu.style.maxHeight)<=300);
+ const row=u.menuControls.parkedList.children[0];assert.equal(row.children[0].textContent,title);assert.equal(row.children[0].title,title);assert.match(row.children[1].textContent,/折りたたみ中/);
+});

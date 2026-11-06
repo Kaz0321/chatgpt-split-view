@@ -478,7 +478,7 @@
       for(const item of result.items.filter(item=>item.id!==workspaceId)){
         const restore=button(`${item.title} (${item.count}タブ)${item.group?'':'・以前の作業'} — ${new Date(item.savedAt).toLocaleString()}`,'保存済みタブグループを復元',async()=>{
           await switchWorkspace(item.id,item.group);
-        });restore.style.whiteSpace='normal';list.appendChild(restore);
+        });restore.className='saved-group';restore.style.whiteSpace='normal';list.appendChild(restore);
       }
       if(!list.children.length)list.appendChild(create('p','','保存済みタブグループはありません。'));
     }catch{list.appendChild(create('p','','保存済みタブグループを読み込めませんでした。'));}
@@ -517,6 +517,7 @@
       .overlay-menu{position:fixed;z-index:2147483647;width:300px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;border:1px solid #aebdcd;border-radius:8px;background:#fff;color:#243b51;padding:12px;font:12px/1.5 system-ui;pointer-events:auto}
       [hidden]{display:none!important}.overlay-menu h3{font-size:13px;margin:0}.overlay-menu .menu-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
       .sidebar-resize{position:fixed;top:0;bottom:0;width:7px;z-index:2147483647;cursor:col-resize;touch-action:none;pointer-events:auto;background:transparent}.sidebar-resize:hover{background:#4c91df66}.sidebar-resize[aria-disabled=true]{cursor:default;pointer-events:none}.overlay-menu .menu-row{display:flex;align-items:center;gap:6px;margin-top:9px}.overlay-menu label{flex:1}.parked-title{flex:1;min-width:0;overflow-wrap:anywhere}.overlay-menu input[type=text]{min-width:0;width:100%;flex:1}.overlay-menu h3{margin-top:12px}.overlay-menu button,.overlay-menu input,.overlay-menu select{font:inherit;color:inherit;min-height:30px;border:1px solid #c8d3df;border-radius:5px;background:#f8fafc;padding:4px 7px}.overlay-menu button:hover{background:#e5edf5}.overlay-menu input[type=number]{width:76px}.overlay-menu input[type=checkbox]{min-height:0;accent-color:#347ed5}.overlay-menu select{min-width:0;flex:1;max-width:205px}.overlay-menu :disabled{opacity:.5;cursor:default}.overlay-note{font-size:10px;color:#62748a;margin:8px 0 0}
+      .overlay{gap:4px;padding:5px;border-radius:9px}.overlay button{min-height:32px;padding:0 8px}.overlay-menu{padding:14px;border-radius:10px}.overlay-menu .menu-heading{padding-bottom:12px;border-bottom:1px solid #e0e6ed}.menu-section{padding:8px 0 14px;border-bottom:1px solid #e0e6ed}.overlay-menu h3{margin:4px 0 10px}.overlay-menu .menu-row{flex-wrap:wrap}.overlay-menu .tab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;padding:9px 8px;margin:3px 0;border-radius:7px}.tab-row.selected{background:#e7f0fc}.tab-row .parked-title{grid-column:1;min-width:0;overflow-wrap:anywhere;line-height:1.5;font-weight:500}.tab-row .tab-state{grid-column:1;max-width:none;font-size:11px}.tab-row button{grid-column:2;min-width:36px}.tab-row button:nth-child(3){grid-row:1}.tab-row button:nth-child(4){grid-row:2}.saved-groups{display:grid;gap:6px;margin-top:8px}.overlay-menu .saved-group{width:100%;text-align:left;padding:10px;overflow-wrap:anywhere;line-height:1.5}.display-settings{margin-top:14px;border:1px solid #dce4ed;border-radius:8px;padding:10px}.display-settings summary{cursor:pointer;font-weight:600;min-height:28px;line-height:28px}.display-settings summary:focus-visible{outline:2px solid #448af0}.overlay-menu .menu-row input[type=text]{flex:1 1 120px}.overlay-menu .menu-row label{flex:1 1 90px}.overlay-menu .menu-row button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
       .board{position:fixed;inset:0 0 0 auto;z-index:2147483645;display:flex;flex-direction:column;background:#e9eef4;color:#1c3048;font:12px system-ui;pointer-events:auto}
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
       .scroller{flex:1;min-height:0;display:flex;gap:7px;padding:9px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
@@ -560,10 +561,11 @@
   function placeOverlay() {
     if(!overlay)return;
     const w=overlay.offsetWidth||154,h=overlay.offsetHeight||36;
-    const preferred=overlayPosition||{x:12,y:Math.round((window.innerHeight||700)*.46)};
+    overlay.style.maxWidth=Math.max(150,Math.min(440,window.innerWidth-24,state.enabled&&settings.sidebarVisible&&sidebarWidth()>=180?sidebarWidth()-24:440))+'px';
+    const preferred=overlayPosition||{x:12,y:12};
     const x=Math.max(4,Math.min(preferred.x,Math.max(4,window.innerWidth-w-16))),y=Math.max(4,Math.min(preferred.y,Math.max(4,window.innerHeight-h-16)));
     overlay.style.left=x+'px';overlay.style.top=y+'px';
-    if(overlayMenu&&!overlayMenu.hidden){const r=overlay.getBoundingClientRect(),mh=overlayMenu.offsetHeight,mw=overlayMenu.offsetWidth;overlayMenu.style.left=Math.max(8,Math.min(r.left,window.innerWidth-mw-16))+'px';overlayMenu.style.top=Math.max(8,Math.min(r.bottom+6+mh<window.innerHeight?r.bottom+6:r.top-mh-6,window.innerHeight-mh-8))+'px';}
+    if(overlayMenu&&!overlayMenu.hidden){const r=overlay.getBoundingClientRect();const width=Math.max(150,Math.min(440,window.innerWidth-16,state.enabled&&settings.sidebarVisible&&sidebarWidth()>=180?sidebarWidth()-16:440));overlayMenu.style.width=width+'px';overlayMenu.style.left=Math.max(8,Math.min(r.left,window.innerWidth-width-8))+'px';const top=Math.max(8,Math.min(r.bottom+6,window.innerHeight-80));overlayMenu.style.top=top+'px';overlayMenu.style.maxHeight=Math.max(64,window.innerHeight-top-8)+'px';}
   }
 
   function syncOverlay() {
@@ -581,7 +583,7 @@
     const parked=state.panes;
     menuControls.parkedHeading.textContent=`タブ一覧 (${parked.length})`;
     for(const p of parked){
-      const row=create('div','menu-row'),name=create('span','parked-title',p.title);
+      const row=create('div','menu-row tab-row'),name=create('span','parked-title',p.title);row.classList.toggle('selected',p.id===state.activeId);name.title=p.title;
       const status=create('span','tab-state',`${!p.visible?'退避中':p.folded?'折りたたみ中':'表示中'}${p.id===state.activeId?'・選択中':''}${!state.enabled?'・分割表示休止中':''}`);
       const restore=button(!p.visible||p.folded?'復元':'選択',`${p.title} を${!p.visible||p.folded?'復元':'選択'}`,()=>{selectConversation(p);paneNodes.get(p.id)?.foldButton?.focus();});restore.disabled=!state.enabled;
       row.append(name,status,restore);
@@ -723,14 +725,16 @@
     undoButton=button('閉じた列を元に戻す','30秒以内のテキスト復元。添付・生成中状態は対象外',undoClose);
     restoreBadge=create('div','overlay-note');const restoredText=create('p','','前回の作業を復元しました。');restoredText.setAttribute('role','status');restoreBadge.append(restoredText,button('通知を閉じる','復元の通知だけを閉じる。作業はそのまま保持',()=>{autoRestored=false;updateRecoveryUI();menuControls.close.focus();}));
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
-    launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
+    launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();void showSavedWorkspaces();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
     viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
-    const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
-    const row=()=>{const e=create('div','menu-row');overlayMenu.appendChild(e);return e;};
-    const url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().appendChild(url);
+    const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View 拡張メニュー'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
+    const displaySettings=create('details','display-settings'),settingsSummary=create('summary','','表示設定');displaySettings.appendChild(settingsSummary);
+    const tabsSection=create('section','menu-section tab-section'),groupsSection=create('section','menu-section group-section');tabsSection.setAttribute('aria-label','タブ一覧');groupsSection.setAttribute('aria-label','タブグループ');
+    let rowTarget=displaySettings;const row=()=>{const e=create('div','menu-row');rowTarget.appendChild(e);return e;};
+    rowTarget=tabsSection;const url=button('URLから追加','会話URLを入力して追加',()=>{addFromPrompt();syncOverlay();});row().appendChild(url);rowTarget=displaySettings;
     const equalLabel=create('label','','列を等分 '),equal=create('input');equal.type='checkbox';equal.setAttribute('aria-label','列を等分');equal.addEventListener('change',()=>{setEqualize(equal.checked);syncOverlay();});equalLabel.appendChild(equal);row().appendChild(equalLabel);
     const widthRow=row(),widthLabel=create('label','','全列幅 (px)'),width=create('input');width.id='cgww-menu-width';width.type='number';width.min='320';width.max=String(originalMaxWidth);widthLabel.htmlFor=width.id;const apply=button('適用','全列の幅を変更',()=>{if(!width.checkValidity())return;settings.nativePaneWidth=false;settings.paneWidth=Core.boundedNumber(width.value,settings.paneWidth,320,originalMaxWidth);for(const p of state.panes){p.width=settings.paneWidth;p.autoWidth=false;}applyColumnWidths();savePrefs();safeSave();syncOverlay();});const widthReset=button('リセット','全列をChatGPT標準幅に戻す',resetPaneWidths);widthReset.setAttribute('aria-label','全列幅をリセット');widthRow.append(widthLabel,width,apply,widthReset);
     const sideRow=row(),sidebar=create('input');sidebar.type='number';sidebar.min='180';sidebar.max='520';sidebar.setAttribute('aria-label','左一覧幅 (px)');
@@ -738,17 +742,17 @@
     const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
     const sidebarLock=button('ロック','左一覧の幅変更をロック・解除',()=>{settings.sidebarLocked=!settings.sidebarLocked;updateGeometry();savePrefs();safeSave();syncOverlay();});sidebarLock.setAttribute('aria-label','左一覧幅のロック');
     sideRow.append(create('label','','左一覧幅 (px)'),sidebar,sidebarApply);row().append(sidebarReset,sidebarLock);
-    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');overlayMenu.append(parkedHeading,parkedList,restoreBadge,create('h3','','タブグループの保存と復元'));
+    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');tabsSection.replaceChildren(parkedHeading,parkedList,url);overlayMenu.append(tabsSection,restoreBadge,groupsSection);groupsSection.appendChild(create('h3','','タブグループ'));rowTarget=tabsSection;
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
-    const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);overlayMenu.appendChild(historyPanel);
-    overlayMenu.appendChild(create('p','overlay-note','現在のタブの組み合わせを名前付きで保存します。同名は連番で保存し、上書きしません。グループ復元は既存タブを保持し、不足分だけ追加します。以前の作業は保存して切り替えます。'));
+    const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);tabsSection.appendChild(historyPanel);rowTarget=groupsSection;
+    groupsSection.appendChild(create('p','overlay-note','現在のタブの組み合わせを名前付きで保存します。同名は連番で保存し、上書きしません。グループ復元は既存タブを保持し、不足分だけ追加します。以前の作業は保存して切り替えます。'));
     const groupName=create('input');groupName.type='text';groupName.maxLength=100;groupName.setAttribute('aria-label','タブグループ名');groupName.placeholder='タブグループ名';
     const groupSave=button('名前を付けて保存','現在のタブグループをコピーして保存',saveNamedGroup);row().append(groupName,groupSave);
-    const groupStatus=create('p','overlay-note');groupStatus.setAttribute('role','status');overlayMenu.appendChild(groupStatus);
-    row().appendChild(button('保存済みタブグループを表示','名前付きグループと以前の作業の一覧を表示',showSavedWorkspaces));const savedList=create('div');overlayMenu.appendChild(savedList);
-    overlayMenu.appendChild(create('p','overlay-note','その他の設定では本文余白・既定の表示設定・設定JSONの入出力を変更できます。'));
+    const groupStatus=create('p','overlay-note');groupStatus.setAttribute('role','status');groupsSection.appendChild(groupStatus);
+    row().appendChild(button('保存済みタブグループを表示','名前付きグループと以前の作業の一覧を表示',showSavedWorkspaces));const savedList=create('div','saved-groups');groupsSection.appendChild(savedList);rowTarget=displaySettings;
+    displaySettings.appendChild(create('p','overlay-note','その他の設定では本文余白・既定の表示設定・設定JSONの入出力を変更できます。'));
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
+    overlayMenu.appendChild(displaySettings);shadow.appendChild(overlayMenu);menuControls={displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
