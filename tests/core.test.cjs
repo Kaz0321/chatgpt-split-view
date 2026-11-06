@@ -86,3 +86,27 @@ test('GPT landing URLs remain distinct from conversations and normalize resource
  const restored=C.restoreWorkspacePanes(raw,()=> 'generated');assert.equal(restored.length,3);assert.equal(restored[0].draft,'keep');assert.equal(restored[0].folded,true);assert.equal(restored[2].newChat,true);
  assert.deepEqual(C.restoreWorkspacePanes(restored,()=> 'generated'),restored);
 });
+
+
+test('GPT routing is generic across IDs, optional slugs, query strings and trailing slashes',()=>{
+ const examples=[
+  ['/g/g-Other123','gpt:Other123'],
+  ['/g/g-Other123-another-gpt','gpt:Other123'],
+  ['/g/g-0123456789abcdef0123456789abcdef-tool_name','gpt:0123456789abcdef0123456789abcdef'],
+  ['/g/g-Third456-name-with-many-hyphens','gpt:Third456']
+ ];
+ for(const [path,key] of examples){
+  assert.equal(C.paneUrl(path+'/?utm_source=test#section'),C.ORIGIN+path);
+  assert.equal(C.paneKey(path),key);
+  assert.equal(C.paneKey(path+'?model=example'),key);
+ }
+ assert.notEqual(C.paneKey(examples[0][0]),C.paneKey(examples[3][0]));
+ assert.notEqual(C.paneKey('/g/g-Other123'),C.paneKey('/g/g-other123'));
+ assert.equal(C.paneUrl('/g/g-Other123-another-gpt/c/thread456?x=1'),C.ORIGIN+'/g/g-Other123-another-gpt/c/thread456');
+ assert.equal(C.paneKey('/g/g-Other123-another-gpt/c/thread456'),C.paneKey('/c/thread456'));
+});
+
+test('GPT support does not turn arbitrary ChatGPT destinations into panes',()=>{
+ for(const path of ['/skills','/plugins','/gpts','/gpts/editor','/settings','/library','/share/thread456','/project/project123','/g/g-Other123/edit','/g/g-Other123/c/short'])assert.equal(C.paneUrl(path),null,path);
+ assert.equal(C.newChatUrl('/'),C.ORIGIN+'/');assert.equal(C.paneKey('/'),null);
+});
