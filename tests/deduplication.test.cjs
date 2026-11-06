@@ -93,3 +93,12 @@ test('GPT resources survive durable snapshot and reload with separate conversati
  const second=P.snapshot(first,'workspace',()=>`n${++n}`);
  assert.equal(second.panes.length,2);assert.equal(second.panes[0].url,url);assert.equal(second.panes[0].draft,'keep');assert.equal(second.panes[0].folded,true);assert.deepEqual(second.panes,first.panes);
 });
+
+
+test('legacy parked group panes remain recoverable without creating new parked duplicates',()=>{
+ const a=harness([]),url=base+'/c/legacy123';
+ const group={panes:[{id:'old',url,visible:false,draft:'legacy draft',width:480}]};
+ a.mergeGroupPanes(group);a.mergeGroupPanes(group);assert.equal(a.get().panes.length,1);
+ const p=a.get().panes[0];assert.equal(p.visible,false);assert.equal(p.draft,'legacy draft');
+ a.selectConversation(p);assert.equal(p.visible,true);assert.equal(p.folded,false);assert.equal(p.draft,'legacy draft');
+});

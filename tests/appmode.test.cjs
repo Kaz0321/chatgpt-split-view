@@ -151,3 +151,13 @@ test('folded controls restore independent widths and focus across multiple panes
  for(const p of panes){const e=h.a.entries().get(p.id);e.foldButton.emit('click');assert.equal(e.root.style.width,'32px');assert.equal(e.restoreButton.hidden,false);assert.equal(h.doc.activeElement,e.restoreButton);}
  for(const p of panes){const e=h.a.entries().get(p.id);e.restoreButton.emit('click');assert.equal(e.root.style.width,p.width+'px');assert.equal(h.doc.activeElement,e.foldButton);assert.equal(p.draft,'draft'+panes.indexOf(p));}
 });
+
+
+test('legacy parked tab returns from list and then uses only the fold control',()=>{
+ const h=harness(),p={id:'legacy',url:Core.ORIGIN+'/',newChat:true,title:'Legacy',visible:false,width:480,draft:'saved input'};
+ h.a.init([p]);h.a.enabled(true);h.a.realRender(p);h.a.makeOverlay();
+ h.a.ui().menuControls.parkedList.children[0].children[2].emit('click');
+ const e=h.a.entries().get(p.id);assert.equal(p.visible,true);assert.equal(p.folded,false);assert.equal(p.draft,'saved input');
+ assert.equal(e.root.children.some(x=>x.className==='pane-control pane-park'),false);
+ e.foldButton.emit('click');assert.equal(p.visible,true);assert.equal(p.folded,true);assert.equal(p.draft,'saved input');assert.equal(h.a.state().panes.length,1);
+});

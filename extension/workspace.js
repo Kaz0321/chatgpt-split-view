@@ -670,23 +670,16 @@
     state.panes.push(p);state.activeId=p.id;renderPane(p);markActive();safeSave();syncOverlay();
   }
 
-  function parkPane(p) {
-    p.visible=false;const entry=paneNodes.get(p.id);if(entry)entry.root.hidden=true;
-    state.activeId=state.panes.find(x=>x.visible)?.id||null;
-    markActive();applyColumnWidths();safeSave();syncOverlay();updateFallbackDock();
-    setStatus('退避しました。設定メニューの「退避中」から復元できます。');
-  }
-
   const detaching=new Set();
   async function detachPane(p) {
     if(detaching.has(p.id))return;
     if(!Core.chatUrl(p.url)||p.newChat){setStatus('送信済みの会話を選んでください。新規会話と入力は元の列に保持します。',true);return;}
-    if(!confirm('会話URLを新規ウィンドウで開き、元の列を退避します。下書き・添付・生成中の状態は元の列に残り、自動移行しません。続けますか？'))return;
+    if(!confirm('会話URLを新規ウィンドウで開き、元の列を折りたたみます。下書き・添付・生成中の状態は元の列に残り、自動移行しません。続けますか？'))return;
     detaching.add(p.id);
     try{
       captureDrafts();if(!await flushWorkspace())return;
       await window.CGWWDetached.request({action:'detach',workspaceId,url:p.url,title:p.title});
-      if(state.panes.includes(p))parkPane(p);
+      if(state.panes.includes(p))setPaneFolded(p,true);
     }catch(e){setStatus(e.message||'新規ウィンドウを作成できませんでした。元の列を保持しています。',true);}
     finally{detaching.delete(p.id);}
   }
@@ -1121,9 +1114,8 @@
     head.appendChild(title);
     const foot=create('span','pane-status');setPaneStatus(foot,'会話URL未指定');head.appendChild(foot);
     const reloadButton=button('↻ 更新','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-control pane-reload');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
-    const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は退避して保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
+    const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は折りたたんで保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
     const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
-    const parkButton=button('退避','この列を一時退避（iframeを保持）',()=>parkPane(p),'pane-control pane-park');parkButton.setAttribute('aria-label','この列を退避');head.appendChild(parkButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
     const main = create('div', 'pane-main');
