@@ -6,7 +6,7 @@ function harness(extra={}) {
   class Element {
     constructor(tag='div'){this.tagName=tag.toUpperCase();this.attributes={};this.listeners={};this.children=[];this.style={};this.dataset={};this.hidden=false;this.value='';this.textContent='';this.ownerDocument=doc;this.offsetWidth=154;this.offsetHeight=36;this.classList={toggle(){},add(){},remove(){}};}
     get firstChild(){return this.children[0];} remove(){}
-    appendChild(e){this.children.push(e);e.parentElement=this;return e;} append(...es){es.forEach(e=>this.appendChild(e));} replaceChildren(...es){this.children=[];this.value='';this.append(...es);}
+    appendChild(e){if(e.parentElement)e.parentElement.children=e.parentElement.children.filter(x=>x!==e);this.children.push(e);e.parentElement=this;return e;} append(...es){es.forEach(e=>this.appendChild(e));} replaceChildren(...es){this.children=[];this.value='';this.append(...es);}
     addEventListener(t,f){(this.listeners[t]??=[]).push(f);} setAttribute(k,v){this.attributes[k]=String(v);} getAttribute(k){return this.attributes[k]??null;} hasAttribute(k){return k in this.attributes;}
     closest(s){if(s.includes('[role="menu"]')||s.includes('[data-radix-menu-content]'))return null;return this.control||this;} focus(){doc.activeElement=this;} setPointerCapture(){} checkValidity(){return Number(this.value)>=320&&Number(this.value)<=Number(this.max);}
     getBoundingClientRect(){return {left:parseFloat(this.style.left)||0,top:parseFloat(this.style.top)||0,bottom:(parseFloat(this.style.top)||0)+36,width:154,height:36};}
@@ -169,12 +169,25 @@ test('approved left menu keeps actions outside and settings in a closed native d
  assert.equal(c.tabsSection.parentElement,u.overlayMenu);assert.equal(c.groupsSection.parentElement,u.overlayMenu);
  assert(u.overlayMenu.children.indexOf(c.tabsSection)<u.overlayMenu.children.indexOf(c.groupsSection));assert(u.overlayMenu.children.indexOf(c.groupsSection)<u.overlayMenu.children.indexOf(c.displaySettings));
  for(const action of [u.launcher,c.add,c.sidebarVisible,u.viewToggle])assert.equal(action.parentElement,u.overlay);
- assert.equal(c.width.parentElement.parentElement,c.displaySettings);assert.equal(c.groupName.parentElement.parentElement,c.groupsSection);
+ assert.equal(c.width.parentElement.parentElement,c.displaySettings);assert.equal(c.groupName.parentElement.parentElement.parentElement,c.groupsSection);
 });
 
 test('left menu clamps narrow viewport and preserves long titles and tab statuses',()=>{
  const h=harness();h.ctx.innerWidth=240;h.ctx.innerHeight=300;const title='長い会話タイトル'.repeat(20);
  h.a.init([{id:'long',title,visible:true,folded:true}]);h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();u.launcher.emit('click');h.a.placeOverlay();
- assert.equal(u.overlayMenu.style.width,'224px');assert(parseFloat(u.overlayMenu.style.left)+224<=240);assert(parseFloat(u.overlayMenu.style.top)+parseFloat(u.overlayMenu.style.maxHeight)<=300);
+ assert.equal(u.overlayMenu.style.width,'120px');assert(parseFloat(u.overlayMenu.style.left)+120<=h.a.sidebarWidth());assert(parseFloat(u.overlayMenu.style.top)+parseFloat(u.overlayMenu.style.maxHeight)<=300);
  const row=u.menuControls.parkedList.children[0];assert.equal(row.children[0].textContent,title);assert.equal(row.children[0].title,title);assert.match(row.children[1].textContent,/折りたたみ中/);
+});
+
+
+test('compact tab name selects and right action folds without a duplicate selection button',()=>{
+ const h=harness(),p={id:'a',title:'A',visible:true,width:480,draft:'keep'};h.a.init([p]);h.a.enabled(true);h.a.realRender(p);h.a.makeOverlay();
+ let row=h.a.ui().menuControls.parkedList.children[0];assert.equal(row.children.length,3);assert.equal(row.children[0].tagName,'BUTTON');
+ row.children[2].emit('click');assert.equal(p.folded,true);assert.equal(p.visible,true);
+ row=h.a.ui().menuControls.parkedList.children[0];row.children[0].emit('click');assert.equal(p.folded,false);assert.equal(p.draft,'keep');
+});
+
+test('docked menu respects saved sidebar widths and ignores floating coordinates without deleting them',()=>{
+ const h=harness();h.a.enabled(true);h.a.position({x:500,y:400});h.a.makeOverlay();
+ for(const width of [180,348,461,520]){h.a.prefs({sidebarWidth:width,sidebarVisible:true});h.a.ui().launcher.emit('click');h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.width,width+'px');assert.equal(u.overlayMenu.style.width,width+'px');assert.equal(u.overlayMenu.style.top,'48px');assert.equal(h.a.settings().sidebarWidth,width);if(!u.overlayMenu.hidden)h.a.closeOverlay();}
 });
