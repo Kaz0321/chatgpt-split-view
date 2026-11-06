@@ -48,3 +48,10 @@ test('group validation and failed storage leave previous groups and live work in
  const before=structuredClone(h.storage.local.data);h.storage.local.set=async()=>{throw Error('quota')};await assert.rejects(h.store.handle(req,1),/quota/);assert.deepEqual(h.storage.local.data,before);
  assert.equal((await h.store.handle({action:'readGroup',id:'missing'},1)).snapshot,null);
 });
+
+test('group names normalize width and case without overwriting and concurrent saves are serialized',async()=>{
+ const h=harness(),c=await h.store.handle({action:'load'},1);await save(h,c);
+ const make=name=>h.store.handle({action:'saveGroup',id:c.id,token:c.token,name,snapshot:raw()},1);
+ const a=await make('Ｒｅｓｅａｒｃｈ'),b=await make('research');assert.equal(a.name,'Research');assert.equal(b.name,'research (2)');
+ const pair=await Promise.all([make('same'),make('same')]);assert.deepEqual(pair.map(x=>x.name),['same','same (2)']);assert.equal(new Set([a.id,b.id,...pair.map(x=>x.id)]).size,4);
+});
