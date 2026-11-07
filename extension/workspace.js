@@ -567,14 +567,16 @@
       returnHost=document.createElement('span');returnHost.id='cgww-return';
       returnHost.style.cssText='display:inline-flex;flex:0 0 auto;align-self:center;position:static;max-width:100%;vertical-align:middle';
       returnRoot=returnHost.attachShadow({mode:'open'});
-      const css=document.createElement('style');css.textContent='button{font:12px system-ui;min-height:32px;padding:4px 10px;border:1px solid #c8d3df;border-radius:6px;background:#fff;color:#243b51;cursor:pointer}button:focus-visible{outline:2px solid #448af0;outline-offset:1px}';returnRoot.appendChild(css);
+      const css=document.createElement('style');css.textContent='button{font:12px system-ui;min-height:32px;padding:4px 10px;border:1px solid #c8d3df;border-radius:6px;background:#fff;color:#243b51;cursor:pointer;pointer-events:auto}button:focus-visible{outline:2px solid #448af0;outline-offset:1px}';returnRoot.appendChild(css);
     }
     returnHost.hidden=state.enabled;returnHost.style.display=state.enabled?'none':'inline-flex';
     if(state.enabled){if(viewToggle.parentElement!==overlay)overlay.appendChild(viewToggle);return;}
     const candidates=Array.from(document.querySelectorAll('header, [role="banner"]'));
-    const target=candidates.find(el=>{const rect=el.getBoundingClientRect();return rect.width>0&&rect.height>0;})||document.querySelector('main')||document.body;
+    const header=candidates.find(el=>{const rect=el.getBoundingClientRect();const css=typeof getComputedStyle==='function'?getComputedStyle(el):null;return rect.width>0&&rect.height>0&&rect.bottom>0&&rect.top<window.innerHeight&&css?.visibility!=='hidden'&&css?.display!=='none';});
+    const target=header||document.querySelector('main')||document.body;
+    returnHost.style.position=header?'static':'sticky';returnHost.style.top='0px';returnHost.style.zIndex=header?'auto':'1';returnHost.style.pointerEvents='auto';
     // Use native flow, never a fixed overlay or viewport-height offset.
-    if(returnHost.parentElement!==target)target.appendChild(returnHost);
+    if(returnHost.parentElement!==target){if(header)target.appendChild(returnHost);else target.insertBefore(returnHost,target.firstChild);}
     if(viewToggle.parentNode!==returnRoot)returnRoot.appendChild(viewToggle);
     if(!returnObserver&&typeof MutationObserver==='function'){
       returnObserver=new MutationObserver(()=>{if(!state.enabled&&!returnHost.isConnected)mountReturnButton();});

@@ -5,7 +5,7 @@ function harness(extra={}) {
   let doc;
   class Element {
     constructor(tag='div'){this.tagName=tag.toUpperCase();this.attributes={};this.listeners={};this.children=[];this.style={};this.dataset={};this.hidden=false;this.value='';this.textContent='';this.ownerDocument=doc;this.offsetWidth=154;this.offsetHeight=36;this.classList={toggle(){},add(){},remove(){}};}
-    get firstChild(){return this.children[0];} remove(){}
+    get firstChild(){return this.children[0];} remove(){} insertBefore(e,before){this.appendChild(e);this.children=this.children.filter(x=>x!==e);const i=this.children.indexOf(before);this.children.splice(i<0?this.children.length:i,0,e);}
     appendChild(e){if(e.parentElement)e.parentElement.children=e.parentElement.children.filter(x=>x!==e);this.children.push(e);e.parentElement=this;return e;} append(...es){es.forEach(e=>this.appendChild(e));} replaceChildren(...es){this.children=[];this.value='';this.append(...es);}
     addEventListener(t,f){(this.listeners[t]??=[]).push(f);} setAttribute(k,v){this.attributes[k]=String(v);} getAttribute(k){return this.attributes[k]??null;} hasAttribute(k){return k in this.attributes;}
     closest(s){if(s.includes('[role="menu"]')||s.includes('[data-radix-menu-content]'))return null;return this.control||this;} focus(){doc.activeElement=this;} setPointerCapture(){} checkValidity(){return Number(this.value)>=320&&Number(this.value)<=Number(this.max);}
@@ -220,4 +220,15 @@ test('original return button uses native flow and split restores the same button
 
 test('workspace host has no layout box or stacking context that traps the toolbar behind native sidebar',()=>{
  const css=source.match(/:host\{([^}]+)\}/)[1];assert.match(css,/display:contents/);assert.doesNotMatch(css,/position:fixed|transform:|isolation:|opacity:/);
+});
+
+test('missing header puts return button before the conversation rather than after the composer',()=>{
+ const h=harness();h.doc.body=new h.Element('body');const main=new h.Element('main'),conversation=new h.Element('div'),composer=new h.Element('textarea');main.append(conversation,composer);h.doc.body.appendChild(main);
+ h.doc.querySelectorAll=()=>[];h.doc.querySelector=()=>main;h.Element.prototype.attachShadow=function(){return new h.Element('shadow');};
+ h.a.makeOverlay();const mount=main.firstChild,u=h.a.ui();assert.equal(mount.id,'cgww-return');assert.equal(main.children[1],conversation);assert.equal(main.children[2],composer);assert.equal(mount.style.position,'sticky');assert.equal(mount.style.pointerEvents,'auto');
+ u.viewToggle.emit('click');assert.equal(h.a.state().enabled,true);assert.equal(mount.hidden,true);
+});
+
+test('return button explicitly accepts pointer events inherited as none from a native header',()=>{
+ assert.match(source,/returnHost\.style\.pointerEvents='auto'/);assert.match(source,/cursor:pointer;pointer-events:auto}button:focus-visible/);
 });
