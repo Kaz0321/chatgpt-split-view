@@ -67,8 +67,10 @@ test('overlay menu opens/closes repeatedly, restores focus and has no destructiv
 test('overlay controls add fresh chats and apply width/equal settings directly',()=>{
  const h=harness();h.a.makeOverlay();h.a.setEnabled(true);const u=h.a.ui();u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,2);u.menuControls.width.value='480';u.menuControls.apply.emit('click');assert.equal(h.a.settings().paneWidth,480);u.menuControls.equal.checked=true;u.menuControls.equal.emit('change');assert.equal(h.a.settings().equalizeColumns,true);assert.equal(u.menuControls.width.disabled,true);
 });
-test('overlay position clamps inside narrow viewport and arrow movement persists locally',()=>{
- const h=harness();h.a.enabled(true);h.a.prefs({sidebarVisible:false});h.a.makeOverlay();h.ctx.innerWidth=400;h.ctx.innerHeight=300;h.a.position({x:5000,y:5000});h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'230px');assert.equal(u.overlay.style.top,'248px');u.overlay.children[0].emit('keydown',{key:'ArrowLeft'});assert.equal(u.overlay.style.left,'214px');assert.equal(h.saves.at(-1).overlayPosition.x,214);
+test('hidden sidebar toolbar reserves the full top strip regardless of old floating coordinates',()=>{
+ const h=harness();h.a.enabled(true);h.a.prefs({sidebarVisible:false});h.a.makeOverlay();h.a.position({x:48,y:50});
+ for(const width of [360,900,1844]){h.ctx.innerWidth=width;h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.top,'0px');assert.equal(u.overlay.style.width,width+'px');assert.equal(u.overlayMenu.style.top,'48px');}
+ h.a.safeSave();assert.equal(h.saves.at(-1).overlayPosition.x,48);assert.equal(h.saves.at(-1).overlayPosition.y,50);
 });
 test('new draft transition records only validated same-origin conversation URL without changing iframe source',()=>{
  const h=harness();const p={newChat:true,url:Core.ORIGIN+'/'};const frame={_cgwwPane:p,src:p.url,contentWindow:{location:{href:Core.ORIGIN+'/c/fixture000'}}};h.a.syncNewChatLocation(frame);assert.equal(p.url,Core.ORIGIN+'/c/fixture000');assert.equal(p.newChat,undefined);assert.equal(frame.src,Core.ORIGIN+'/');

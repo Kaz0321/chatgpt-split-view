@@ -588,18 +588,12 @@
     if(!overlay)return;
     overlay.hidden=!state.enabled;mountReturnButton();
     if(!state.enabled){if(overlayMenu)overlayMenu.hidden=true;return;}
-    if(settings.sidebarVisible){
-      const width=sidebarWidth();overlay.classList.add('docked');overlay.style.left='0px';overlay.style.top='0px';overlay.style.width=width+'px';overlay.style.maxWidth=width+'px';
-      if(overlayMenu){overlayMenu.classList.add('docked');overlayMenu.style.left='0px';overlayMenu.style.top='48px';overlayMenu.style.width=width+'px';overlayMenu.style.maxHeight=Math.max(0,window.innerHeight-48)+'px';overlayMenu.style.height=Math.max(0,window.innerHeight-48)+'px';}
-      return;
+    const width=settings.sidebarVisible?sidebarWidth():window.innerWidth;
+    overlay.classList.add('docked');overlay.style.left='0px';overlay.style.top='0px';overlay.style.width=width+'px';overlay.style.maxWidth=width+'px';
+    if(overlayMenu){
+      const menuWidth=settings.sidebarVisible?width:Math.min(settings.sidebarWidth,window.innerWidth);
+      overlayMenu.classList.add('docked');overlayMenu.style.left='0px';overlayMenu.style.top='48px';overlayMenu.style.width=menuWidth+'px';overlayMenu.style.maxHeight=Math.max(0,window.innerHeight-48)+'px';overlayMenu.style.height=Math.max(0,window.innerHeight-48)+'px';
     }
-    overlay.classList.remove('docked');overlay.style.width='';if(overlayMenu){overlayMenu.classList.remove('docked');overlayMenu.style.height='';}
-    const w=overlay.offsetWidth||154,h=overlay.offsetHeight||36;
-    overlay.style.maxWidth=Math.max(150,Math.min(440,window.innerWidth-24,state.enabled&&settings.sidebarVisible&&sidebarWidth()>=180?sidebarWidth()-24:440))+'px';
-    const preferred=overlayPosition||{x:12,y:12};
-    const x=Math.max(4,Math.min(preferred.x,Math.max(4,window.innerWidth-w-16))),y=Math.max(4,Math.min(preferred.y,Math.max(4,window.innerHeight-h-16)));
-    overlay.style.left=x+'px';overlay.style.top=y+'px';
-    if(overlayMenu&&!overlayMenu.hidden){const r=overlay.getBoundingClientRect();const width=Math.max(150,Math.min(440,window.innerWidth-16,state.enabled&&settings.sidebarVisible&&sidebarWidth()>=180?sidebarWidth()-16:440));overlayMenu.style.width=width+'px';overlayMenu.style.left=Math.max(8,Math.min(r.left,window.innerWidth-width-8))+'px';const top=Math.max(8,Math.min(r.bottom+6,window.innerHeight-80));overlayMenu.style.top=top+'px';overlayMenu.style.maxHeight=Math.max(64,window.innerHeight-top-8)+'px';}
   }
 
   function syncOverlay() {
