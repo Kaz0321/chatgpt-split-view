@@ -19,7 +19,7 @@ REPO_FILES = (
     'docs/privacy.md', 'docs/changelog.md',
     'docs/verification.md', 'docs/development.md',
     'docs/readme-history.md', 'docs/verification-tab-groups.md',
-    'docs/candidate-install.md',
+    'docs/candidate-install.md', 'docs/release-1.0.0.md', 'docs/readme-v0101.md',
 )
 FILES = {name: EXTENSION / name for name in RUNTIME_FILES}
 FILES.update({name: ROOT / name for name in REPO_FILES})

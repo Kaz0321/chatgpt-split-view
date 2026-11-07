@@ -308,3 +308,11 @@ test('layout settings moved to options persist and invalid pane widths are rejec
  assert.equal(h.state.writes.at(-1)[KEY].paneWidth,500);assert.equal(h.state.writes.at(-1)[KEY].equalizeColumns,true);
  const count=h.state.writes.length;h.nodes['pane-width'].value='0';await h.nodes['pane-width'].emit('input');await h.nodes['settings-form'].emit('submit');assert.equal(h.state.writes.length,count);
 });
+
+test('standard width reset can be discarded and saved without changing other preferences',async()=>{
+ const h=harness({paneWidth:480,nativePaneWidth:false,sidebarLocked:true,sidebarWidth:390,equalizeColumns:true});await settle();
+ await h.nodes['reset-pane-width'].emit('click');assert.equal(h.state.writes.length,0);assert.equal(h.nodes['native-pane-width'].checked,true);
+ await h.nodes['discard-settings'].emit('click');assert.equal(h.nodes['native-pane-width'].checked,false);assert.equal(h.nodes['pane-width'].value,'480');
+ await h.nodes['reset-pane-width'].emit('click');await h.nodes['settings-form'].emit('submit');await settle();
+ assert.equal(h.stored.nativePaneWidth,true);assert.equal(h.stored.paneWidth,Core.DEFAULTS.paneWidth);assert.equal(h.stored.sidebarLocked,true);assert.equal(h.stored.sidebarWidth,390);assert.equal(h.stored.equalizeColumns,true);
+});

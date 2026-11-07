@@ -259,4 +259,13 @@ test('native conversation menu refuses generic labels, ambiguity, mismatched URL
  candidates=[button('Conversation options')];frame.contentWindow.location.href=Core.ORIGIN+'/c/other000';assert.equal(h.a.openPaneNativeMenu(p),false);
  frame.contentWindow.location.href=p.url;assert.equal(h.a.openPaneNativeMenu(p),true);assert.equal(clicks,1);
  frame.contentWindow.location.origin='https://other.example';assert.equal(h.a.openPaneNativeMenu(p),false);assert.equal(clicks,1);
+ frame.contentWindow.location.origin=Core.ORIGIN;frame.contentWindow.location.href=Core.ORIGIN+'/';p.url=Core.ORIGIN+'/';assert.equal(h.a.openPaneNativeMenu(p),false);assert.equal(clicks,1);
+});
+
+test('gear opens extension options directly without changing panes or mode',()=>{
+ const messages=[];const h=harness({chrome:{runtime:{sendMessage:(m,callback)=>{messages.push(m);callback({ok:true});}},storage:{local:{set:async()=>{}}}}});
+ h.a.makeOverlay();h.a.setEnabled(true);const before=h.a.state().panes.slice(),u=h.a.ui();
+ const gear=u.overlay.children.find(e=>e.getAttribute('aria-label')==='オプションを開く');assert.ok(gear);gear.emit('click');
+ assert.equal(messages.length,1);assert.equal(messages[0].type,'CGWW_OPEN_OPTIONS');assert.equal(h.a.state().enabled,true);assert.deepEqual(h.a.state().panes,before);
+ assert.equal(u.overlay.children.indexOf(u.menuControls.sidebarVisible),u.overlay.children.indexOf(u.launcher)+1);
 });

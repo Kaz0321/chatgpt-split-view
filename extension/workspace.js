@@ -1222,7 +1222,7 @@
   function openPaneNativeMenu(p) {
     try {
       const frame=paneNodes.get(p.id)?.iframe,doc=frame?.contentDocument;
-      if(!doc||frame.contentWindow.location.origin!==Core.ORIGIN||Core.paneKey(frame.contentWindow.location.href)!==Core.paneKey(p.url))throw Error('unavailable');
+      if(!doc||!Core.paneKey(p.url)||frame.contentWindow.location.origin!==Core.ORIGIN||Core.paneKey(frame.contentWindow.location.href)!==Core.paneKey(p.url))throw Error('unavailable');
       // Only explicitly named conversation controls, never generic ellipsis/menu buttons.
       const names=new Set(['Conversation options','Open conversation options','Chat options','会話のオプション','チャットのオプション']);
       const candidates=Array.from(doc.querySelectorAll('header button[aria-haspopup], [role="banner"] button[aria-haspopup]')).filter(b=>names.has(b.getAttribute('aria-label'))&&!b.disabled&&b.getClientRects().length&&getComputedStyle(b).visibility!=='hidden');
