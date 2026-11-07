@@ -217,3 +217,7 @@ test('original return button uses native flow and split restores the same button
  u.viewToggle.emit('click');assert.equal(h.a.entries().get(pane.id).iframe,frame);assert.equal(frame.draft,'unsent');
  assert.deepEqual(h.doc.body.style,{});
 });
+
+test('workspace host has no layout box or stacking context that traps the toolbar behind native sidebar',()=>{
+ const css=source.match(/:host\{([^}]+)\}/)[1];assert.match(css,/display:contents/);assert.doesNotMatch(css,/position:fixed|transform:|isolation:|opacity:/);
+});

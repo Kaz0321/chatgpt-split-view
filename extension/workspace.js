@@ -509,7 +509,7 @@
     shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = `
-      :host{all:initial;position:fixed;width:0;height:0;pointer-events:none}*,*::before,*::after{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer}
+      :host{all:initial;display:contents;pointer-events:none}*,*::before,*::after{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer}
       button:focus-visible,input:focus-visible{outline:2px solid #448af0;outline-offset:1px}
       .overlay{position:fixed;z-index:2147483646;display:flex;flex-wrap:wrap;max-width:calc(100vw - 20px);align-items:center;gap:2px;padding:3px;border:1px solid #aebdcd;border-radius:7px;background:#f8fafc;color:#344b61;font:12px system-ui;pointer-events:auto}
       .overlay button{min-height:28px;max-width:100%;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;padding:0 7px;white-space:nowrap}
@@ -575,7 +575,7 @@
     const target=candidates.find(el=>{const rect=el.getBoundingClientRect();return rect.width>0&&rect.height>0;})||document.querySelector('main')||document.body;
     // Use native flow, never a fixed overlay or viewport-height offset.
     if(returnHost.parentElement!==target)target.appendChild(returnHost);
-    if(viewToggle.parentElement!==returnRoot)returnRoot.appendChild(viewToggle);
+    if(viewToggle.parentNode!==returnRoot)returnRoot.appendChild(viewToggle);
     if(!returnObserver&&typeof MutationObserver==='function'){
       returnObserver=new MutationObserver(()=>{if(!state.enabled&&!returnHost.isConnected)mountReturnButton();});
       returnObserver.observe(document.body,{childList:true,subtree:true});
