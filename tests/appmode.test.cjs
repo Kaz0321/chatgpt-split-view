@@ -16,7 +16,7 @@ function harness(extra={}) {
   let serial=0;const saves=[],ctx={Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
   vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
-    enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
+    enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {panel,overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
 }
 function control(h,tag='a',attrs={}){const e=new h.Element(tag);e.href='https://chatgpt.com/?noauth_recent_chat_failed=1';e.setAttribute('aria-label','新しいチャット');for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;}
@@ -67,9 +67,9 @@ test('overlay menu opens/closes repeatedly, restores focus and has no destructiv
 test('overlay controls add fresh chats and apply width/equal settings directly',()=>{
  const h=harness();h.a.makeOverlay();h.a.setEnabled(true);const u=h.a.ui();u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,2);u.menuControls.width.value='480';u.menuControls.apply.emit('click');assert.equal(h.a.settings().paneWidth,480);u.menuControls.equal.checked=true;u.menuControls.equal.emit('change');assert.equal(h.a.settings().equalizeColumns,true);assert.equal(u.menuControls.width.disabled,true);
 });
-test('hidden sidebar toolbar reserves the full top strip regardless of old floating coordinates',()=>{
+test('vertical rail keeps the top free regardless of old floating coordinates',()=>{
  const h=harness();h.a.enabled(true);h.a.prefs({sidebarVisible:false});h.a.makeOverlay();h.a.position({x:48,y:50});
- for(const width of [360,900,1844]){h.ctx.innerWidth=width;h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.top,'0px');assert.equal(u.overlay.style.width,width+'px');assert.equal(u.overlayMenu.style.top,'48px');}
+ for(const width of [360,900,1844]){h.ctx.innerWidth=width;h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.top,'0px');assert.equal(u.overlay.style.width,'40px');assert.equal(u.overlayMenu.style.top,'0px');assert.equal(u.overlayMenu.style.left,'40px');}
  h.a.safeSave();assert.equal(h.saves.at(-1).overlayPosition.x,48);assert.equal(h.saves.at(-1).overlayPosition.y,50);
 });
 test('new draft transition records only validated same-origin conversation URL without changing iframe source',()=>{
@@ -177,7 +177,7 @@ test('approved left menu keeps actions outside and settings in a closed native d
 test('left menu clamps narrow viewport and preserves long titles and tab statuses',()=>{
  const h=harness();h.ctx.innerWidth=240;h.ctx.innerHeight=300;const title='長い会話タイトル'.repeat(20);
  h.a.init([{id:'long',title,visible:true,folded:true}]);h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();u.launcher.emit('click');h.a.placeOverlay();
- assert.equal(u.overlayMenu.style.width,'120px');assert(parseFloat(u.overlayMenu.style.left)+120<=h.a.sidebarWidth());assert(parseFloat(u.overlayMenu.style.top)+parseFloat(u.overlayMenu.style.maxHeight)<=300);
+ assert.equal(u.overlayMenu.style.width,'120px');assert(parseFloat(u.overlayMenu.style.left)+120<=40+h.a.sidebarWidth());assert(parseFloat(u.overlayMenu.style.top)+parseFloat(u.overlayMenu.style.maxHeight)<=300);
  const row=u.menuControls.parkedList.children[0];assert.equal(row.children[0].textContent,title);assert.equal(row.children[0].title,title);assert.match(row.children[1].textContent,/折りたたみ中/);
 });
 
@@ -191,7 +191,7 @@ test('compact tab name selects and right action folds without a duplicate select
 
 test('docked menu respects saved sidebar widths and ignores floating coordinates without deleting them',()=>{
  const h=harness();h.a.enabled(true);h.a.position({x:500,y:400});h.a.makeOverlay();
- for(const width of [180,348,461,520]){h.a.prefs({sidebarWidth:width,sidebarVisible:true});h.a.ui().launcher.emit('click');h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.width,width+'px');assert.equal(u.overlayMenu.style.width,width+'px');assert.equal(u.overlayMenu.style.top,'48px');assert.equal(h.a.settings().sidebarWidth,width);if(!u.overlayMenu.hidden)h.a.closeOverlay();}
+ for(const width of [180,348,461,520]){h.a.prefs({sidebarWidth:width,sidebarVisible:true});h.a.ui().launcher.emit('click');h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.width,'40px');assert.equal(u.overlayMenu.style.width,width+'px');assert.equal(u.overlayMenu.style.top,'0px');assert.equal(u.overlayMenu.style.left,'40px');assert.equal(h.a.settings().sidebarWidth,width);if(!u.overlayMenu.hidden)h.a.closeOverlay();}
 });
 
 
@@ -233,4 +233,12 @@ test('missing header puts return button before the conversation rather than afte
 
 test('return button explicitly accepts pointer events inherited as none from a native header',()=>{
  assert.match(source,/returnHost\.style\.pointerEvents='auto'/);assert.match(source,/cursor:pointer;pointer-events:auto}button:focus-visible/);
+});
+
+test('rail keeps all four actions direct and gives the board full viewport height',()=>{
+ const h=harness();h.a.makeOverlay();h.a.setEnabled(true);let u=h.a.ui();assert.equal(u.panel.style.top,'0px');assert.equal(u.panel.style.left,'388px');
+ u.menuControls.sidebarVisible.emit('click');assert.equal(u.panel.style.left,'40px');assert.equal(u.panel.style.top,'0px');
+ u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);
+ const count=h.a.state().panes.length;u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,count+1);
+ u.viewToggle.emit('click');assert.equal(h.a.state().enabled,false);u.viewToggle.emit('click');assert.equal(h.a.state().enabled,true);assert.equal(u.panel.style.top,'0px');
 });

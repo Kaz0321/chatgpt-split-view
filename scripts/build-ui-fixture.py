@@ -13,6 +13,7 @@ boot='''
     {id:'c',title:'後で読む会話',url:null,width:480,autoWidth:false,visible:false}]};
   settings=Core.normalizeSettings(saved?.settings||{sidebarVisible:true});autoRestored=true;initializing=false;
   updateFallbackDock=()=>{};
+  buildFrame=(p,main)=>{const frame=document.createElement('iframe');frame.src='about:blank';frame.title='Local new chat fixture';main.appendChild(frame);return frame;};
   makeUI();panel.hidden=!state.enabled;state.panes.forEach(renderPane);applyColumnWidths();markActive();
   for(const p of state.panes){const entry=paneNodes.get(p.id);entry.main.replaceChildren();const field=document.createElement('textarea');field.setAttribute('aria-label',p.title+'の未送信入力');field.style.cssText='margin:20px;width:85%;height:180px';field.value=p.draft||'未送信のダミー入力';field.addEventListener('input',()=>{p.draft=field.value;safeSave()});entry.main.appendChild(field);}
 '''

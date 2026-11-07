@@ -141,7 +141,7 @@
 
   function sidebarWidth() {
     if(!settings.sidebarVisible)return 0;
-    return Math.min(settings.sidebarWidth,Math.max(120,(window.innerWidth||1024)-320));
+    return Math.min(settings.sidebarWidth,Math.max(120,(window.innerWidth||1024)-40-320));
   }
 
   function releaseMasterSidebar() {
@@ -162,7 +162,7 @@
     if(!native){if(pinnedMaster&&!pinnedMaster.isConnected)releaseMasterSidebar();return;}
     if(pinnedMaster!==native){pinnedMaster?.removeAttribute('data-cgww-master-sidebar');pinnedMaster=native;native.setAttribute('data-cgww-master-sidebar','true');}
     if(!masterStyle){masterStyle=document.createElement('style');masterStyle.id='cgww-master-pin';document.documentElement.appendChild(masterStyle);}
-    const css=`[data-cgww-master-sidebar="true"]{display:block!important;visibility:visible!important;opacity:1!important;position:fixed!important;inset:0 auto 0 0!important;transform:none!important;translate:none!important;width:${sidebarWidth()}px!important;min-width:0!important;max-width:${sidebarWidth()}px!important;height:100dvh!important;max-height:100dvh!important;overflow:auto!important;z-index:2147483644!important;pointer-events:auto!important}`;
+    const css=`[data-cgww-master-sidebar="true"]{display:block!important;visibility:visible!important;opacity:1!important;position:fixed!important;inset:0 auto 0 40px!important;transform:none!important;translate:none!important;width:${sidebarWidth()}px!important;min-width:0!important;max-width:${sidebarWidth()}px!important;height:100dvh!important;max-height:100dvh!important;overflow:auto!important;z-index:2147483644!important;pointer-events:auto!important}`;
     if(masterStyle.textContent!==css)masterStyle.textContent=css;
   }
 
@@ -520,6 +520,10 @@
       .overlay{gap:4px;padding:5px;border-radius:9px}.overlay button{min-height:32px;padding:0 8px}.overlay-menu{padding:14px;border-radius:10px}.overlay-menu .menu-heading{padding-bottom:12px;border-bottom:1px solid #e0e6ed}.menu-section{padding:8px 0 14px;border-bottom:1px solid #e0e6ed}.overlay-menu h3{margin:4px 0 10px}.overlay-menu .menu-row{flex-wrap:wrap}.overlay-menu .tab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;padding:9px 8px;margin:3px 0;border-radius:7px}.tab-row.selected{background:#e7f0fc}.tab-row .parked-title{grid-column:1;min-width:0;overflow-wrap:anywhere;line-height:1.5;font-weight:500}.tab-row .tab-state{grid-column:1;max-width:none;font-size:11px}.tab-row button{grid-column:2;min-width:36px}.tab-row button:nth-child(3){grid-row:1}.tab-row button:nth-child(4){grid-row:2}.saved-groups{display:grid;gap:6px;margin-top:8px}.overlay-menu .saved-group{width:100%;text-align:left;padding:10px;overflow-wrap:anywhere;line-height:1.5}.overlay-menu .saved-group{min-height:50px;overflow:hidden;text-overflow:ellipsis}.group-save-details{margin-top:12px}.group-save-details summary{cursor:pointer;padding:8px 0}.display-settings{margin-top:14px;border:1px solid #dce4ed;border-radius:8px;padding:10px}.display-settings summary{cursor:pointer;font-weight:600;min-height:28px;line-height:28px}.display-settings summary:focus-visible{outline:2px solid #448af0}.overlay-menu .menu-row input[type=text]{flex:1 1 120px}.overlay-menu .menu-row label{flex:1 1 90px}.overlay-menu .menu-row button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
       .overlay{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;white-space:nowrap;font-size:12px;height:48px;min-height:48px}.overlay::-webkit-scrollbar{height:6px}.overlay>button{flex:none}.overlay.docked{border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:#fff;gap:2px;padding:4px 6px}.overlay.docked .overlay-grip{display:none}.overlay.docked button{padding:0 5px}.overlay-menu.docked{max-width:none;border:0;border-right:1px solid #e5e7eb;border-radius:0;padding:16px 12px;background:#fff;font:15px/1.5 system-ui}.overlay-menu .tab-row{grid-template-columns:minmax(0,1fr) 30px;grid-template-rows:24px 16px;gap:0 8px;padding:5px 8px;min-height:50px;margin:2px 0}.overlay-menu .tab-row .parked-title{grid-row:1;grid-column:1;display:block;text-align:left;padding:0;min-height:0;border:0;background:transparent;font-size:15px;line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.overlay-menu .tab-row .tab-state{grid-row:2;grid-column:1;font-size:10px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.overlay-menu .tab-row .tab-toggle{grid-column:2;grid-row:1 / 3;align-self:center;min-width:30px;min-height:30px;padding:0;font-size:17px;border-color:#d6dee8;background:transparent}.overlay-menu .tab-row .parked-title:hover{color:#175caa;background:transparent}.overlay-menu h3{font-size:15px}.overlay-menu .overlay-note{font-size:12px;color:#667085}.overlay-menu .menu-heading h3{font-size:16px}
       .overlay-menu .tab-row{grid-template-rows:30px;min-height:38px;padding:4px 6px}.overlay-menu .tab-row .parked-title{line-height:30px}.overlay-menu .tab-row .tab-toggle{grid-row:1;min-height:28px;height:28px}.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}.group-save-form{margin-top:8px}.group-save-form[hidden]{display:none!important}
+      .overlay.docked{width:40px;max-width:40px;height:100dvh;min-height:0;flex-direction:column;align-items:center;gap:4px;padding:4px 2px;overflow-x:hidden;overflow-y:auto;border:0;border-right:1px solid #e5e7eb;z-index:2147483647}
+      .overlay.docked>button{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;font-size:0;flex:none}
+      .overlay.docked>button::before{font:18px/1 system-ui}.overlay .overlay-launcher::before{content:'☰'}.overlay .overlay-add::before{content:'+'}.overlay .overlay-sidebar::before{content:'▥'}.overlay .overlay-view::before{content:'↗'}.overlay .overlay-save::before{content:'!'}.overlay .overlay-undo::before{content:'↶'}
+      .overlay.docked button[aria-pressed=true]{background:#e7f0fc;border-color:#aebdcd}.overlay-menu.docked{z-index:2147483646}
       .board{position:fixed;inset:0 0 0 auto;z-index:2147483645;display:flex;flex-direction:column;background:#e9eef4;color:#1c3048;font:12px system-ui;pointer-events:auto}
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
       .scroller{flex:1;min-height:0;display:flex;gap:7px;padding:9px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
@@ -588,11 +592,10 @@
     if(!overlay)return;
     overlay.hidden=!state.enabled;mountReturnButton();
     if(!state.enabled){if(overlayMenu)overlayMenu.hidden=true;return;}
-    const width=settings.sidebarVisible?sidebarWidth():window.innerWidth;
-    overlay.classList.add('docked');overlay.style.left='0px';overlay.style.top='0px';overlay.style.width=width+'px';overlay.style.maxWidth=width+'px';
+    overlay.classList.add('docked');overlay.style.left='0px';overlay.style.top='0px';overlay.style.width='40px';overlay.style.maxWidth='40px';
     if(overlayMenu){
-      const menuWidth=settings.sidebarVisible?width:Math.min(settings.sidebarWidth,window.innerWidth);
-      overlayMenu.classList.add('docked');overlayMenu.style.left='0px';overlayMenu.style.top='48px';overlayMenu.style.width=menuWidth+'px';overlayMenu.style.maxHeight=Math.max(0,window.innerHeight-48)+'px';overlayMenu.style.height=Math.max(0,window.innerHeight-48)+'px';
+      const menuWidth=settings.sidebarVisible?sidebarWidth():Math.min(settings.sidebarWidth,Math.max(0,window.innerWidth-40));
+      overlayMenu.classList.add('docked');overlayMenu.style.left='40px';overlayMenu.style.top='0px';overlayMenu.style.width=menuWidth+'px';overlayMenu.style.maxHeight=window.innerHeight+'px';overlayMenu.style.height=window.innerHeight+'px';
     }
   }
 
@@ -750,14 +753,14 @@
 
   function makeOverlay() {
     overlay=create('div','overlay');overlay.setAttribute('role','group');overlay.setAttribute('aria-label','Split View 操作');
-    saveBadge=button('未保存・再試行','最新状態の保存を再試行',retryWorkspaceSave);saveBadge.setAttribute('aria-live','polite');
+    saveBadge=button('未保存・再試行','最新状態の保存を再試行',retryWorkspaceSave);saveBadge.className='overlay-save';saveBadge.setAttribute('aria-label','未保存・再試行');saveBadge.setAttribute('aria-live','polite');
     undoButton=button('閉じた列を元に戻す','30秒以内のテキスト復元。添付・生成中状態は対象外',undoClose);
     restoreBadge=create('div','overlay-note');const restoredText=create('p','','前回の作業を復元しました。');restoredText.setAttribute('role','status');restoreBadge.append(restoredText,button('通知を閉じる','復元の通知だけを閉じる。作業はそのまま保持',()=>{autoRestored=false;updateRecoveryUI();menuControls.close.focus();}));
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
     launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();void showSavedWorkspaces();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
-    const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
+    const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');add.setAttribute('aria-label','新しいチャット');overlay.appendChild(add);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
-    viewToggle=button('分割を開始','分割表示を開始',()=>{setEnabled(!state.enabled);viewToggle.focus();},'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
+    viewToggle=button('分割を開始','分割表示を開始',()=>{setEnabled(!state.enabled);viewToggle.focus();},'overlay-view');overlay.appendChild(viewToggle);undoButton.className='overlay-undo';undoButton.setAttribute('aria-label','閉じた列を元に戻す');overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
     const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View 拡張メニュー'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
     const displaySettings=create('details','display-settings'),settingsSummary=create('summary','','表示設定');displaySettings.appendChild(settingsSummary);
@@ -829,9 +832,9 @@
   function setPaneStatus(node,text,stateName='') { node.textContent='●';node.title=text;node.setAttribute('aria-label',text);node.dataset.state=stateName; }
 
   function updateGeometry() {
-    if (panel){panel.style.left = `${sidebarWidth()}px`;panel.style.top=state.enabled&&!settings.sidebarVisible?'48px':'0px';}
-    if(sidebarHandle){sidebarHandle.hidden=!state.enabled||!settings.sidebarVisible;sidebarHandle.style.left=`${sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
-    if (fallbackDock) fallbackDock.style.width = `${sidebarWidth()}px`;
+    if (panel){panel.style.left = `${40+sidebarWidth()}px`;panel.style.top='0px';}
+    if(sidebarHandle){sidebarHandle.hidden=!state.enabled||!settings.sidebarVisible;sidebarHandle.style.left=`${40+sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
+    if (fallbackDock){fallbackDock.style.left='40px';fallbackDock.style.width = `${sidebarWidth()}px`;}
     applyColumnWidths();
   }
 
