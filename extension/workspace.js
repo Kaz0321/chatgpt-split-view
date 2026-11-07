@@ -524,9 +524,19 @@
       .overlay.docked>button{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;font-size:0;flex:none}
       .overlay.docked>button::before{font:18px/1 system-ui}.overlay .overlay-launcher::before{content:'☰'}.overlay .overlay-add::before{content:'+'}.overlay .overlay-sidebar::before{content:'▥'}.overlay .overlay-view::before{content:'↗'}.overlay .overlay-save::before{content:'!'}.overlay .overlay-undo::before{content:'↶'}
       .overlay.docked button[aria-pressed=true]{background:#e7f0fc;border-color:#aebdcd}.overlay-menu.docked{z-index:2147483646}
+
+      .overlay-options{margin-top:auto!important}.overlay.docked :is(.overlay-launcher,.overlay-sidebar,.overlay-add,.overlay-view,.overlay-options)::before{content:"";display:inline-block;width:20px;height:20px;background:currentColor;mask-position:center;mask-repeat:no-repeat;mask-size:contain}
+      .overlay .overlay-launcher::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%2215%22%20height%3D%2214%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M3%2016V4a1%201%200%200%201%201-1h12%22%2F%3E%3C%2Fsvg%3E")}
+      .overlay .overlay-sidebar::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%2218%22%20height%3D%2216%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M9%204v16m7-12-4%204%204%204%22%2F%3E%3C%2Fsvg%3E")}
+      .overlay .overlay-add::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%205v14M5%2012h14%22%2F%3E%3C%2Fsvg%3E")}
+      .overlay .overlay-view::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%2218%22%20height%3D%2216%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M3%208h18%22%2F%3E%3C%2Fsvg%3E")}
+      .overlay .overlay-options::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m10%203-1%203-3%201-2%203%202%202-1%203%202%203%203-1%202%203%203-1%201-3%203-1%201-3-2-2%201-3-3-2-3%201-2-3z%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223%22%2F%3E%3C%2Fsvg%3E")}
+      .pane-link::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m10%2013%204-4m-6%207-2%202a4%204%200%200%201-6-6l5-5a4%204%200%200%201%206%200m2%201%202-2a4%204%200%200%201%206%206l-5%205a4%204%200%200%201-6%200%22%20transform%3D%22translate%282%200%29%20scale%28.85%29%22%2F%3E%3C%2Fsvg%3E")}
+      .pane-more::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%225%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2219%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3C%2Fsvg%3E")}
+      .overlay-sidebar[aria-pressed=false]::before{transform:scaleX(-1)}.pane-link,.pane-more{font-size:0!important}.pane-link::before,.pane-more::before{display:inline-block;width:16px;height:16px;background:currentColor;mask-size:contain;mask-repeat:no-repeat}.overlay-options{flex-shrink:0}
       .board{position:fixed;inset:0 0 0 auto;z-index:2147483645;display:flex;flex-direction:column;background:#e9eef4;color:#1c3048;font:12px system-ui;pointer-events:auto}
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
-      .scroller{flex:1;min-height:0;display:flex;gap:7px;padding:9px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
+      .scroller{flex:1;min-height:0;display:flex;gap:4px;padding:4px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
       .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;transform:rotate(180deg);font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
       .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
@@ -757,12 +767,12 @@
     undoButton=button('閉じた列を元に戻す','30秒以内のテキスト復元。添付・生成中状態は対象外',undoClose);
     restoreBadge=create('div','overlay-note');const restoredText=create('p','','前回の作業を復元しました。');restoredText.setAttribute('role','status');restoreBadge.append(restoredText,button('通知を閉じる','復元の通知だけを閉じる。作業はそのまま保持',()=>{autoRestored=false;updateRecoveryUI();menuControls.close.focus();}));
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
-    launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();void showSavedWorkspaces();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
+    launcher=button('▥ メニュー','タブ管理',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();void showSavedWorkspaces();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','タブ管理');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');add.setAttribute('aria-label','新しいチャット');overlay.appendChild(add);
-    const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
-    viewToggle=button('分割を開始','分割表示を開始',()=>{setEnabled(!state.enabled);viewToggle.focus();},'overlay-view');overlay.appendChild(viewToggle);undoButton.className='overlay-undo';undoButton.setAttribute('aria-label','閉じた列を元に戻す');overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
-    overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
-    const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View 拡張メニュー'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
+    const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.insertBefore(sidebarVisible,add);
+    viewToggle=button('分割を開始','分割表示を開始',()=>{setEnabled(!state.enabled);viewToggle.focus();},'overlay-view');overlay.appendChild(viewToggle);undoButton.className='overlay-undo';undoButton.setAttribute('aria-label','閉じた列を元に戻す');overlay.append(saveBadge,undoButton);const optionsButton=button('オプション','オプションを開く',openOptions,'overlay-options');optionsButton.setAttribute('aria-label','オプションを開く');overlay.appendChild(optionsButton);updateRecoveryUI();shadow.appendChild(overlay);
+    overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','タブ管理');
+    const heading=create('div','menu-heading');heading.appendChild(create('h3','','タブ管理'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
     const displaySettings=create('details','display-settings'),settingsSummary=create('summary','','表示設定');displaySettings.appendChild(settingsSummary);
     const tabsSection=create('section','menu-section tab-section'),groupsSection=create('section','menu-section group-section');tabsSection.setAttribute('aria-label','タブ一覧');groupsSection.setAttribute('aria-label','タブグループ');
     let rowTarget=displaySettings;const row=()=>{const e=create('div','menu-row');rowTarget.appendChild(e);return e;};
@@ -785,7 +795,7 @@
     row().appendChild(button('保存済みタブグループを表示','名前付きグループと以前の作業の一覧を表示',showSavedWorkspaces));const savedList=create('div','saved-groups');groupsSection.appendChild(savedList);groupsSection.appendChild(groupSaveDetails);rowTarget=displaySettings;
     displaySettings.appendChild(create('p','overlay-note','その他の設定では本文余白・既定の表示設定・設定JSONの入出力を変更できます。'));
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    overlayMenu.appendChild(displaySettings);shadow.appendChild(overlayMenu);menuControls={groupStart,groupSaveDetails,groupCancel,displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={groupStart,groupSaveDetails,groupCancel,displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -1150,8 +1160,10 @@
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
     const foot=create('span','pane-status');setPaneStatus(foot,'会話URL未指定');head.appendChild(foot);
-    const reloadButton=button('↻ 更新','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-control pane-reload');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
+    const reloadButton=button('↻','この列だけを再読み込み。端末間の同期は保証しません。',()=>reloadPane(p),'pane-control pane-reload');reloadButton.setAttribute('aria-label','この列を更新');head.appendChild(reloadButton);
     const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は折りたたんで保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
+    const linkButton=button('リンク','このタブのURLをコピー',()=>copyPaneUrl(p),'pane-control pane-link');linkButton.setAttribute('aria-label','このタブのURLをコピー');head.appendChild(linkButton);
+    const nativeButton=button('…','ChatGPTの会話メニューを開く',()=>openPaneNativeMenu(p),'pane-control pane-more');nativeButton.setAttribute('aria-label','ChatGPTの会話メニューを開く');head.appendChild(nativeButton);
     const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
@@ -1191,6 +1203,32 @@
     scroller.appendChild(root);
     paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton });
     attachPaneDrag(root,grip,p);syncPaneOrder();applyColumnWidths();
+  }
+
+  function paneSourceUrl(p) {
+    const frame=paneNodes.get(p.id)?.iframe;
+    try {const current=Core.paneUrl(frame?.contentWindow?.location?.href);if(current)return {url:current,saved:false};}catch{/* Saved URL remains available without crossing origins. */}
+    const saved=Core.paneUrl(p.url);return saved?{url:saved,saved:true}:null;
+  }
+
+  async function copyPaneUrl(p) {
+    const result=paneSourceUrl(p);
+    if(!result){setStatus('未送信チャットには固有の会話URLがありません。',true);return;}
+    const suffix=result.saved?'（保存済みURL）':'';
+    try{if(!navigator.clipboard?.writeText)throw Error('unavailable');await navigator.clipboard.writeText(result.url);setStatus((Core.gptUrl(result.url)?'GPTページ':'会話')+'のURLをコピーしました。'+suffix);}
+    catch{prompt('URLをコピーしてください。'+suffix,result.url);}
+  }
+
+  function openPaneNativeMenu(p) {
+    try {
+      const frame=paneNodes.get(p.id)?.iframe,doc=frame?.contentDocument;
+      if(!doc||frame.contentWindow.location.origin!==Core.ORIGIN||Core.paneKey(frame.contentWindow.location.href)!==Core.paneKey(p.url))throw Error('unavailable');
+      // Only explicitly named conversation controls, never generic ellipsis/menu buttons.
+      const names=new Set(['Conversation options','Open conversation options','Chat options','会話のオプション','チャットのオプション']);
+      const candidates=Array.from(doc.querySelectorAll('header button[aria-haspopup], [role="banner"] button[aria-haspopup]')).filter(b=>names.has(b.getAttribute('aria-label'))&&!b.disabled&&b.getClientRects().length&&getComputedStyle(b).visibility!=='hidden');
+      if(candidates.length!==1)throw Error('ambiguous');
+      candidates[0].click();return true;
+    }catch{setStatus('この画面のChatGPT会話メニューは確認できません。元画面の「…」を使用してください。',true);return false;}
   }
 
   function reloadPane(pane) {

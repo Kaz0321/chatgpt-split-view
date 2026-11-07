@@ -14,7 +14,7 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {panel,overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
@@ -97,7 +97,7 @@ test('restoring empty or all-parked workspace never creates an extra conversatio
 
 test('direct actions remain outside the closed menu and add exactly one chat from original mode',()=>{
  const h=harness();h.a.makeOverlay();const u=h.a.ui();assert.equal(u.overlayMenu.hidden,true);
- assert.equal(u.overlay.children[1],u.launcher);assert.equal(u.overlay.children[2],u.menuControls.add);assert.equal(u.overlay.children[3],u.menuControls.sidebarVisible);assert.equal(u.menuControls.padding,undefined);
+ assert.equal(u.overlay.children[1],u.launcher);assert.equal(u.overlay.children[2],u.menuControls.sidebarVisible);assert.equal(u.overlay.children[3],u.menuControls.add);assert.equal(u.menuControls.padding,undefined);
  u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,1);assert.equal(h.a.state().enabled,true);assert.equal(u.overlayMenu.hidden,true);
  u.menuControls.sidebarVisible.emit('click');assert.equal(h.a.sidebarWidth(),0);assert.equal(u.menuControls.sidebarVisible.getAttribute('aria-label'),'左一覧を表示');assert.equal(u.overlayMenu.hidden,true);
  u.menuControls.sidebarVisible.emit('click');assert.equal(u.menuControls.sidebarVisible.getAttribute('aria-label'),'左一覧を隠す');assert.equal(u.overlayMenu.hidden,true);
@@ -168,8 +168,8 @@ test('legacy parked tab returns from list and then uses only the fold control',(
 test('approved left menu keeps actions outside and settings in a closed native disclosure',()=>{
  const h=harness();h.a.makeOverlay();const u=h.a.ui(),c=u.menuControls;
  assert.equal(c.displaySettings.tagName,'DETAILS');assert.equal(c.displaySettings.hasAttribute('open'),false);assert.equal(c.displaySettings.firstChild.tagName,'SUMMARY');
- assert.equal(c.tabsSection.parentElement,u.overlayMenu);assert.equal(c.groupsSection.parentElement,u.overlayMenu);
- assert(u.overlayMenu.children.indexOf(c.tabsSection)<u.overlayMenu.children.indexOf(c.groupsSection));assert(u.overlayMenu.children.indexOf(c.groupsSection)<u.overlayMenu.children.indexOf(c.displaySettings));
+ assert.equal(c.tabsSection.parentElement,u.overlayMenu);assert.equal(c.groupsSection.parentElement,u.overlayMenu);assert.equal(c.displaySettings.parentElement,undefined);
+ assert(u.overlayMenu.children.indexOf(c.tabsSection)<u.overlayMenu.children.indexOf(c.groupsSection));
  for(const action of [u.launcher,c.add,c.sidebarVisible,u.viewToggle])assert.equal(action.parentElement,u.overlay);
  assert.equal(c.width.parentElement.parentElement,c.displaySettings);assert.equal(c.groupName.parentElement.parentElement.parentElement,c.groupsSection);
 });
@@ -241,4 +241,22 @@ test('rail keeps all four actions direct and gives the board full viewport heigh
  u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);
  const count=h.a.state().panes.length;u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,count+1);
  u.viewToggle.emit('click');assert.equal(h.a.state().enabled,false);u.viewToggle.emit('click');assert.equal(h.a.state().enabled,true);assert.equal(u.panel.style.top,'0px');
+});
+
+test('copy URL prefers live conversation, falls back to saved URL, and rejects unsent roots',async()=>{
+ const copies=[],prompts=[];const h=harness({navigator:{clipboard:{writeText:async value=>copies.push(value)}},prompt:(message,value)=>prompts.push(value)});
+ const p={id:'copy',url:Core.ORIGIN+'/c/saved000',visible:true};h.a.init([p]);h.a.setEnabled(true);h.a.entries().get(p.id).iframe={contentWindow:{location:{href:Core.ORIGIN+'/c/current00'}}};
+ await h.a.copyPaneUrl(p);assert.equal(copies[0],Core.ORIGIN+'/c/current00');
+ h.a.entries().get(p.id).iframe={get contentWindow(){throw Error('cross origin');}};await h.a.copyPaneUrl(p);assert.equal(copies[1],p.url);
+ h.ctx.navigator.clipboard.writeText=async()=>{throw Error('denied');};await h.a.copyPaneUrl(p);assert.equal(prompts[0],p.url);
+ assert.equal(h.a.paneSourceUrl({id:'blank',url:Core.ORIGIN+'/',newChat:true}),null);
+});
+test('native conversation menu refuses generic labels, ambiguity, mismatched URLs and cross origin',()=>{
+ const h=harness({getComputedStyle:()=>({visibility:'visible'})});const p={id:'menu',url:Core.ORIGIN+'/c/menu0000',visible:true};h.a.init([p]);h.a.setEnabled(true);
+ let clicks=0,candidates=[];const button=label=>({getAttribute:()=>label,getClientRects:()=>[{}],click:()=>clicks++});const frame={contentDocument:{querySelectorAll:()=>candidates},contentWindow:{location:{origin:Core.ORIGIN,href:p.url}}};h.a.entries().get(p.id).iframe=frame;
+ candidates=[button('More options')];assert.equal(h.a.openPaneNativeMenu(p),false);
+ candidates=[button('Conversation options'),button('Conversation options')];assert.equal(h.a.openPaneNativeMenu(p),false);
+ candidates=[button('Conversation options')];frame.contentWindow.location.href=Core.ORIGIN+'/c/other000';assert.equal(h.a.openPaneNativeMenu(p),false);
+ frame.contentWindow.location.href=p.url;assert.equal(h.a.openPaneNativeMenu(p),true);assert.equal(clicks,1);
+ frame.contentWindow.location.origin='https://other.example';assert.equal(h.a.openPaneNativeMenu(p),false);assert.equal(clicks,1);
 });

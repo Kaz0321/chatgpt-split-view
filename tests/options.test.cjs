@@ -25,7 +25,7 @@ function harness(initial = {}) {
   let stored = Core.normalizeSettings(initial);
   const nodes = Object.fromEntries(['settings-form', 'settings-fields', 'status', 'save-settings', 'discard-settings',
     'export-settings', 'import-settings', 'import-file', 'retry-load', 'content-padding', 'reset-content-padding', 'sidebar-width', 'keep-master-sidebar',
-    'intercept-sidebar', 'hide-frame-sidebar'].map(id => [id, new Element()]));
+    'pane-width','native-pane-width','equalize-columns','sidebar-locked','reset-pane-width','intercept-sidebar', 'hide-frame-sidebar'].map(id => [id, new Element()]));
   const listeners = new Set();
   const state = { writes: [], failGet: false, failSet: false, confirmations: [], confirmResult: true, downloads: [], created: [] };
   const chrome = {
@@ -288,7 +288,7 @@ test('browser script initializes through CGWWCore without CommonJS or inline han
   const vm = require('node:vm');
   const nodes = Object.fromEntries(['settings-form', 'settings-fields', 'status', 'save-settings', 'discard-settings',
     'export-settings', 'import-settings', 'import-file', 'retry-load', 'content-padding', 'reset-content-padding', 'sidebar-width', 'keep-master-sidebar',
-    'intercept-sidebar', 'hide-frame-sidebar'].map(id => [id, new Element()]));
+    'pane-width','native-pane-width','equalize-columns','sidebar-locked','reset-pane-width','intercept-sidebar', 'hide-frame-sidebar'].map(id => [id, new Element()]));
   const context = vm.createContext({
     CGWWCore: Core, TextEncoder,
     document: { getElementById: id => nodes[id] },
@@ -298,4 +298,13 @@ test('browser script initializes through CGWWCore without CommonJS or inline han
   await settle();
   assert.equal(nodes['sidebar-width'].value, '345');
   assert.equal(nodes['settings-fields'].disabled, false);
+});
+
+test('layout settings moved to options persist and invalid pane widths are rejected',async()=>{
+ const h=harness();await settle();
+ h.nodes['pane-width'].value='500';await h.nodes['pane-width'].emit('input');
+ h.nodes['equalize-columns'].checked=true;await h.nodes['equalize-columns'].emit('change');
+ await h.nodes['settings-form'].emit('submit');await settle();
+ assert.equal(h.state.writes.at(-1)[KEY].paneWidth,500);assert.equal(h.state.writes.at(-1)[KEY].equalizeColumns,true);
+ const count=h.state.writes.length;h.nodes['pane-width'].value='0';await h.nodes['pane-width'].emit('input');await h.nodes['settings-form'].emit('submit');assert.equal(h.state.writes.length,count);
 });

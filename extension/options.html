@@ -14,12 +14,16 @@
     <header>
       <p class="eyebrow">CHATGPT WIDE WORKSPACE <span class="badge">候補版</span></p>
       <h1>ワークスペースの設定</h1>
-      <p class="intro">普段は触らない設定を、ここにまとめました。列幅・等分・列の追加は、チャット画面のコンパクトなツールバーで操作できます。</p>
+      <p class="intro">タブとグループはチャット画面で管理し、表示や動作はこちらで設定します。</p>
     </header>
 
     <form id="settings-form">
       <fieldset id="settings-fields" disabled>
         <legend>表示</legend>
+        <div class="field check-field"><input id="native-pane-width" type="checkbox"><label for="native-pane-width">ChatGPTの標準幅を使う</label></div>
+        <div class="field width-field"><label for="pane-width">列幅（標準幅OFF時）</label><div class="number-field"><input id="pane-width" type="number" min="320" max="1400" required><span>px</span><button id="reset-pane-width" type="button">標準に戻す</button></div></div>
+        <div class="field check-field"><input id="equalize-columns" type="checkbox"><label for="equalize-columns">表示中の列を等幅にする</label></div>
+        <div class="field check-field"><input id="sidebar-locked" type="checkbox"><label for="sidebar-locked">左一覧の幅をロックする</label></div>
         <div class="field width-field">
           <label for="content-padding">本文左右余白上限</label>
           <div class="number-field"><input id="content-padding" name="contentPadding" type="number" min="0" max="12" step="1" required inputmode="numeric"><span aria-hidden="true">px</span><button id="reset-content-padding" type="button">リセット</button></div>

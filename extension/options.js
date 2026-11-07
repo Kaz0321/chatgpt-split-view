@@ -5,7 +5,7 @@
   const PREF_KEY = 'cgww.v1.preferences';
   const MAX_IMPORT_BYTES = 64 * 1024;
   const SETTINGS_KEYS = Object.freeze(['sidebarVisible', 'sidebarLocked', 'nativePaneWidth', 'contentPadding', 'sidebarWidth', 'paneWidth', 'keepMasterSidebar', 'interceptSidebar', 'hideFrameSidebar', 'equalizeColumns']);
-  const FIELD_IDS = Object.freeze({ contentPadding: 'content-padding', sidebarWidth: 'sidebar-width', keepMasterSidebar: 'keep-master-sidebar', interceptSidebar: 'intercept-sidebar', hideFrameSidebar: 'hide-frame-sidebar' });
+  const FIELD_IDS = Object.freeze({ paneWidth:'pane-width', nativePaneWidth:'native-pane-width', equalizeColumns:'equalize-columns', sidebarLocked:'sidebar-locked', contentPadding: 'content-padding', sidebarWidth: 'sidebar-width', keepMasterSidebar: 'keep-master-sidebar', interceptSidebar: 'intercept-sidebar', hideFrameSidebar: 'hide-frame-sidebar' });
 
   function makeExport(settings) {
     return { kind: 'ChatGPTWideWorkspaceSettings', schemaVersion: Core.SCHEMA_VERSION, settings: Core.normalizeSettings(settings) };
@@ -140,6 +140,7 @@
       });
     }
 
+    find('reset-pane-width').addEventListener('click',()=>{if(!ready||busy)return;fields.nativePaneWidth.checked=true;fields.paneWidth.value=String(Core.DEFAULTS.paneWidth);dirty.add('nativePaneWidth');dirty.add('paneWidth');setStatus('標準幅に戻します。変更を保存してください。');updateButtons();});
     find('reset-content-padding').addEventListener('click',()=>{if(!ready||busy)return;fields.contentPadding.value=String(Core.DEFAULTS.contentPadding);if(preferences.contentPadding===Core.DEFAULTS.contentPadding)dirty.delete('contentPadding');else dirty.add('contentPadding');setStatus('余白を12pxに戻しました。変更を保存してください。');updateButtons();});
 
     form.addEventListener('submit', async event => {
@@ -151,6 +152,7 @@
         fields.sidebarWidth.focus();
         return;
       }
+      const paneWidth=Number(fields.paneWidth.value);if(!fields.paneWidth.value.trim()||!Number.isInteger(paneWidth)||paneWidth<320||paneWidth>1400){setStatus('列幅は320〜1400の整数で入力してください。',true);fields.paneWidth.focus();return;}
       const padding=Number(fields.contentPadding.value);
       if(!fields.contentPadding.value.trim()||!Number.isInteger(padding)||padding<0||padding>12){setStatus('余白は0〜12の整数で入力してください。',true);fields.contentPadding.focus();return;}
       const patch = {};
