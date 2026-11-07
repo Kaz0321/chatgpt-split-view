@@ -28,4 +28,3 @@ test('real initialization + group save/merge + reload preserves legacy drafts an
 test('group restore cancellation and real storage failure retain the live document and latest draft',async()=>{
  for(const failure of [false,true]){const h=harness(),live=await h.boot();await live.a.saveNamedGroup();const group=(await h.store.handle({action:'list'},1)).items.find(x=>x.group);const pane=live.a.state().panes[0];pane.draft='must retain';if(failure)h.fail();else live.cancel();assert.equal(await live.a.switchWorkspace(group.id,true),false);assert.equal(live.reloads(),0);assert.equal(live.a.state().panes[0],pane);assert.equal(pane.draft,'must retain');assert.equal(live.a.id(),'legacy');assert.equal(h.data[P.GROUP_PREFIX+group.id].panes[0].draft,'before');}
 });
-
