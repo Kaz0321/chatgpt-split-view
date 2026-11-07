@@ -59,10 +59,10 @@ test('original-view round trips preserve iframe references and original drafts',
  const h=harness();h.a.setEnabled(true);const pane=h.a.state().panes[0],frame=h.a.entries().get(pane.id).iframe;frame.draft='unsent fixture';for(let i=0;i<4;i++){h.a.setEnabled(false);h.a.setEnabled(true);}assert.equal(h.a.entries().get(pane.id).iframe,frame);assert.equal(frame.draft,'unsent fixture');assert.equal(h.a.state().panes.length,1);
 });
 test('page overlay works without chrome.tabs or extension popup and offers one-click original/return',()=>{
- const h=harness();h.a.makeOverlay();const u=h.a.ui();assert.equal(u.viewToggle.textContent,'分割を開始');u.viewToggle.emit('click');assert.equal(h.a.state().enabled,true);assert.equal(u.viewToggle.textContent,'元画面');u.viewToggle.emit('click');assert.equal(h.a.state().enabled,false);assert.equal(u.viewToggle.textContent,'分割へ');assert.equal(u.overlay.hidden,false);
+ const h=harness();h.a.makeOverlay();const u=h.a.ui();assert.equal(u.viewToggle.textContent,'分割を開始');u.viewToggle.emit('click');assert.equal(h.a.state().enabled,true);assert.equal(u.viewToggle.textContent,'元画面');u.viewToggle.emit('click');assert.equal(h.a.state().enabled,false);assert.equal(u.viewToggle.textContent,'分割へ');assert.equal(u.overlay.hidden,true);
 });
 test('overlay menu opens/closes repeatedly, restores focus and has no destructive view toggle side effect',()=>{
- const h=harness();h.a.makeOverlay();const u=h.a.ui();for(let i=0;i<3;i++){u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);assert.equal(u.launcher.getAttribute('aria-expanded'),'true');u.menuControls.close.emit('click');assert.equal(u.overlayMenu.hidden,true);assert.equal(h.doc.activeElement,u.launcher);}assert.equal(h.a.state().enabled,false);
+ const h=harness();h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();for(let i=0;i<3;i++){u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);assert.equal(u.launcher.getAttribute('aria-expanded'),'true');u.menuControls.close.emit('click');assert.equal(u.overlayMenu.hidden,true);assert.equal(h.doc.activeElement,u.launcher);}assert.equal(h.a.state().enabled,true);
 });
 test('overlay controls add fresh chats and apply width/equal settings directly',()=>{
  const h=harness();h.a.makeOverlay();h.a.setEnabled(true);const u=h.a.ui();u.menuControls.add.emit('click');assert.equal(h.a.state().panes.length,2);u.menuControls.width.value='480';u.menuControls.apply.emit('click');assert.equal(h.a.settings().paneWidth,480);u.menuControls.equal.checked=true;u.menuControls.equal.emit('change');assert.equal(h.a.settings().equalizeColumns,true);assert.equal(u.menuControls.width.disabled,true);
@@ -81,7 +81,7 @@ test('iframe-realm new-chat button is recognized without parent Element rejectio
  const h=harness(),child=vm.createContext({});vm.runInContext(`class Element{};this.Element=Element;this.button=new Element();button.tagName='BUTTON';button.ownerDocument={defaultView:{Element,location:{pathname:'/c/fixture000'}}};button.closest=()=>button;button.getAttribute=k=>k==='aria-label'?'新しいチャット':null;`,child);assert.equal(h.a.newChatControl(event(child.button)),child.button);
 });
 test('Escape and outside pointer dismissal close only the menu and permit reopening',()=>{
- const h=harness();h.a.makeOverlay();const u=h.a.ui();u.launcher.emit('click');u.overlayMenu.parentElement.emit('keydown',{key:'Escape'});assert(u.overlayMenu.hidden);u.launcher.emit('click');for(const fn of h.doc.listeners.pointerdown)fn({composedPath:()=>[]});assert(u.overlayMenu.hidden);u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);assert.equal(h.a.state().enabled,false);
+ const h=harness();h.a.enabled(true);h.a.makeOverlay();const u=h.a.ui();u.launcher.emit('click');u.overlayMenu.parentElement.emit('keydown',{key:'Escape'});assert(u.overlayMenu.hidden);u.launcher.emit('click');for(const fn of h.doc.listeners.pointerdown)fn({composedPath:()=>[]});assert(u.overlayMenu.hidden);u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);assert.equal(h.a.state().enabled,true);
 });
 
 test('parked titles and restore buttons are directly present without nested disclosure',()=>{
@@ -200,7 +200,20 @@ test('save group button reveals local-date default and cancel preserves all data
  c.groupName.value='not saved';c.groupCancel.emit('click');assert(c.groupSaveDetails.hidden);assert.equal(h.saves.length,count);assert.equal(h.doc.activeElement,c.groupStart);
 });
 
-test('original view uses the same left toolbar alignment and accessible tab state',()=>{
- const h=harness();h.a.init([{id:'a',title:'A',visible:true}]);h.a.makeOverlay();h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.style.left,'0px');assert.equal(u.overlay.style.top,'0px');assert.equal(u.overlay.style.width,'348px');
+test('original view hides the entire toolbar and menu but preserves accessible tab state',()=>{
+ const h=harness();h.a.init([{id:'a',title:'A',visible:true}]);h.a.makeOverlay();h.a.placeOverlay();const u=h.a.ui();assert.equal(u.overlay.hidden,true);assert.equal(u.overlayMenu.hidden,true);
  const row=u.menuControls.parkedList.children[0];assert.equal(row.children[2].getAttribute('aria-expanded'),'true');assert.match(row.children[1].className,/sr-only/);
+});
+
+test('original return button uses native flow and split restores the same button and draft',()=>{
+ const h=harness();h.doc.body=new h.Element('body');const header=new h.Element('header');h.doc.body.appendChild(header);
+ h.doc.querySelectorAll=()=>[header];h.doc.querySelector=()=>null;
+ h.Element.prototype.attachShadow=function(){return new h.Element('shadow');};
+ h.a.makeOverlay();const u=h.a.ui(),mount=header.children[0];
+ assert.equal(mount.id,'cgww-return');assert.equal(u.overlay.hidden,true);assert.notEqual(u.viewToggle.parentElement,u.overlay);assert.equal(mount.style.display,'inline-flex');
+ u.viewToggle.emit('click');const pane=h.a.state().panes[0],frame=h.a.entries().get(pane.id).iframe;frame.draft='unsent';
+ assert.equal(u.viewToggle.parentElement,u.overlay);assert.equal(mount.style.display,'none');
+ u.viewToggle.emit('click');assert.equal(u.overlay.hidden,true);assert.equal(mount.style.display,'inline-flex');
+ u.viewToggle.emit('click');assert.equal(h.a.entries().get(pane.id).iframe,frame);assert.equal(frame.draft,'unsent');
+ assert.deepEqual(h.doc.body.style,{});
 });

@@ -509,7 +509,7 @@
     shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = `
-      :host{all:initial}*,*::before,*::after{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer}
+      :host{all:initial;position:fixed;width:0;height:0;pointer-events:none}*,*::before,*::after{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer}
       button:focus-visible,input:focus-visible{outline:2px solid #448af0;outline-offset:1px}
       .overlay{position:fixed;z-index:2147483646;display:flex;flex-wrap:wrap;max-width:calc(100vw - 20px);align-items:center;gap:2px;padding:3px;border:1px solid #aebdcd;border-radius:7px;background:#f8fafc;color:#344b61;font:12px system-ui;pointer-events:auto}
       .overlay button{min-height:28px;max-width:100%;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;padding:0 7px;white-space:nowrap}
@@ -560,10 +560,34 @@
     overlayMenu.hidden=true;launcher.setAttribute('aria-expanded','false');if(restoreFocus)launcher.focus();placeOverlay();
   }
 
+  let returnHost=null,returnRoot=null,returnObserver=null;
+  function mountReturnButton() {
+    if(!viewToggle||!document.body)return;
+    if(!returnHost){
+      returnHost=document.createElement('span');returnHost.id='cgww-return';
+      returnHost.style.cssText='display:inline-flex;flex:0 0 auto;align-self:center;position:static;max-width:100%;vertical-align:middle';
+      returnRoot=returnHost.attachShadow({mode:'open'});
+      const css=document.createElement('style');css.textContent='button{font:12px system-ui;min-height:32px;padding:4px 10px;border:1px solid #c8d3df;border-radius:6px;background:#fff;color:#243b51;cursor:pointer}button:focus-visible{outline:2px solid #448af0;outline-offset:1px}';returnRoot.appendChild(css);
+    }
+    returnHost.hidden=state.enabled;returnHost.style.display=state.enabled?'none':'inline-flex';
+    if(state.enabled){if(viewToggle.parentElement!==overlay)overlay.appendChild(viewToggle);return;}
+    const candidates=Array.from(document.querySelectorAll('header, [role="banner"]'));
+    const target=candidates.find(el=>{const rect=el.getBoundingClientRect();return rect.width>0&&rect.height>0;})||document.querySelector('main')||document.body;
+    // Use native flow, never a fixed overlay or viewport-height offset.
+    if(returnHost.parentElement!==target)target.appendChild(returnHost);
+    if(viewToggle.parentElement!==returnRoot)returnRoot.appendChild(viewToggle);
+    if(!returnObserver&&typeof MutationObserver==='function'){
+      returnObserver=new MutationObserver(()=>{if(!state.enabled&&!returnHost.isConnected)mountReturnButton();});
+      returnObserver.observe(document.body,{childList:true,subtree:true});
+    }
+  }
+
   function placeOverlay() {
     if(!overlay)return;
-    if(!state.enabled||settings.sidebarVisible){
-      const width=state.enabled?sidebarWidth():Math.min(settings.sidebarWidth,window.innerWidth);overlay.classList.add('docked');overlay.style.left='0px';overlay.style.top='0px';overlay.style.width=width+'px';overlay.style.maxWidth=width+'px';
+    overlay.hidden=!state.enabled;mountReturnButton();
+    if(!state.enabled){if(overlayMenu)overlayMenu.hidden=true;return;}
+    if(settings.sidebarVisible){
+      const width=sidebarWidth();overlay.classList.add('docked');overlay.style.left='0px';overlay.style.top='0px';overlay.style.width=width+'px';overlay.style.maxWidth=width+'px';
       if(overlayMenu){overlayMenu.classList.add('docked');overlayMenu.style.left='0px';overlayMenu.style.top='48px';overlayMenu.style.width=width+'px';overlayMenu.style.maxHeight=Math.max(0,window.innerHeight-48)+'px';overlayMenu.style.height=Math.max(0,window.innerHeight-48)+'px';}
       return;
     }
@@ -737,7 +761,7 @@
     launcher=button('▥ メニュー','Split View メニュー',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();void showSavedWorkspaces();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','Split View メニュー');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');overlay.appendChild(add);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.appendChild(sidebarVisible);
-    viewToggle=button('分割を開始','分割表示を開始',()=>setEnabled(!state.enabled),'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
+    viewToggle=button('分割を開始','分割表示を開始',()=>{setEnabled(!state.enabled);viewToggle.focus();},'overlay-view');overlay.appendChild(viewToggle);overlay.append(saveBadge,undoButton);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','Split View メニュー');
     const heading=create('div','menu-heading');heading.appendChild(create('h3','','Split View 拡張メニュー'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
     const displaySettings=create('details','display-settings'),settingsSummary=create('summary','','表示設定');displaySettings.appendChild(settingsSummary);
