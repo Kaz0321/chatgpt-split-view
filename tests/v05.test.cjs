@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');const Core=require('../extension/core.js');
-function harness(extra={}){const chrome={runtime:{id:'self',getURL:p=>'chrome-extension://self/'+p}},ctx={CGWWCore:Core,URL,document:{getElementById(){return null;}},chrome,...extra};ctx.window=ctx;ctx.top=ctx;ctx.innerWidth=1271;vm.createContext(ctx);let s=fs.readFileSync(require.resolve('../extension/workspace.js'),'utf8').replace('  void initialize();',`globalThis.api={sidebarWidth,handleAction,reloadPane,assignToActive,pinMasterSidebar,releaseMasterSidebar,startMasterWatch,stopMasterWatch,tryExpandNativeSidebar,set(panes,entries=new Map()){state.enabled=true;state.panes=panes;entries.forEach((e,id)=>paneNodes.set(id,e));safeSave=()=>{};savePrefs=()=>{};},settings(v){settings=Core.normalizeSettings(v);},capture(){const calls=[];addPane=(...a)=>calls.push(a);return calls;},captureEnable(){setEnabled=v=>state.enabled=v;},captureMeasure(v){measureNativeSidebar=()=>v;},captureOpener(el){findNativeOpener=()=>el;},sender(){return {id:'self',url:chrome.runtime.getURL('popup.html')}}};`);vm.runInContext(s,ctx);return{ctx,a:ctx.api};}
+function harness(extra={}){const chrome={runtime:{id:'self',getURL:p=>'chrome-extension://self/'+p}},ctx={CGWWCore:Core,URL,document:{getElementById(){return null;}},chrome,...extra};ctx.window=ctx;ctx.top=ctx;ctx.innerWidth=1271;vm.createContext(ctx);let s=fs.readFileSync(require.resolve('../extension/workspace.js'),'utf8').replace('  void initialize();',`globalThis.api={nativeRailState,measureNativeSidebar,sidebarWidth,handleAction,reloadPane,assignToActive,pinMasterSidebar,releaseMasterSidebar,startMasterWatch,stopMasterWatch,tryExpandNativeSidebar,set(panes,entries=new Map()){state.enabled=true;state.panes=panes;entries.forEach((e,id)=>paneNodes.set(id,e));safeSave=()=>{};savePrefs=()=>{};},settings(v){settings=Core.normalizeSettings(v);},capture(){const calls=[];addPane=(...a)=>calls.push(a);return calls;},captureEnable(){setEnabled=v=>state.enabled=v;},captureMeasure(v){measureNativeSidebar=()=>v;},captureOpener(el){findNativeOpener=()=>el;},sender(){return {id:'self',url:chrome.runtime.getURL('popup.html')}}};`);vm.runInContext(s,ctx);return{ctx,a:ctx.api};}
 test('popup status accepts extension popup only, does not return URLs or drafts',()=>{const{a}=harness();a.set([{id:'a',title:'A',url:'private',visible:false}]);let r;a.handleAction({type:'CGWW_ACTION',action:'status'},a.sender(),x=>r=x);assert.equal(r.ok,true);assert.deepEqual(Object.keys(r.hiddenPanes[0]).sort(),['id','title']);for(const sender of [{id:'other',url:'chrome-extension://self/popup.html'},{id:'self',url:'https://chatgpt.com/'},{...a.sender(),tab:{id:1}}]){a.handleAction({type:'CGWW_ACTION',action:'status'},sender,x=>r=x);assert.equal(r.ok,false);}});
 test('popup commands enable and clamp widths; unknown and invalid URL rejected',()=>{const{a}=harness();const panes=[{id:'a',width:500,visible:true}];a.set(panes);a.captureEnable();let r;a.handleAction({type:'CGWW_ACTION',action:'disable'},a.sender(),x=>r=x);assert.equal(r.enabled,false);a.handleAction({type:'CGWW_ACTION',action:'enable'},a.sender(),x=>r=x);assert.equal(r.enabled,true);a.handleAction({type:'CGWW_ACTION',action:'width',value:1},a.sender(),x=>r=x);assert.equal(panes[0].width,320);a.handleAction({type:'CGWW_ACTION',action:'addUrl',url:'https://example.com/'},a.sender(),x=>r=x);assert.equal(r.ok,false);a.handleAction({type:'CGWW_ACTION',action:'nope'},a.sender(),x=>r=x);assert.equal(r.ok,false);});
 test('incoming history appends right and never hides active conversation',()=>{const{a}=harness();let p=[{id:'a',url:'https://chatgpt.com/c/a',visible:true},{id:'b',url:'https://chatgpt.com/c/b',visible:true}];a.set(p);const calls=a.capture();a.assignToActive('https://chatgpt.com/c/c','C');assert.equal(calls.length,1);assert.equal(calls[0][2],true);assert.equal(p[0].visible,true);assert.equal(p[1].visible,true);});
@@ -19,4 +19,32 @@ test('showing sidebar clears hide CSS even while native sidebar is absent, then 
   const attrs={};native={childElementCount:1,isConnected:true,setAttribute(k,v){attrs[k]=v;},removeAttribute(k){delete attrs[k];}};
   a.pinMasterSidebar();assert.equal(attrs['data-cgww-master-sidebar'],'true');assert.match(styles.at(-1).textContent,/display:block!important/);
  }
+});
+
+
+test('modern native rail follows hover exit, pin/unpin, hiding and DOM replacement without auto clicks',()=>{
+ let collapsed=true,present=true,clicks=0;
+ const content={hasAttribute:()=>collapsed},rail={getBoundingClientRect:()=>({width:52})};
+ const outer={getBoundingClientRect:()=>({left:40,right:380,width:340,height:900})};
+ const document={getElementById(){},querySelector(s){return !present?null:s==='[data-slate-sidebar-content]'?content:rail;},querySelectorAll(){return[outer];}};
+ const {a}=harness({document,getComputedStyle:()=>({display:'block',visibility:'visible'})});a.set([]);a.settings({sidebarWidth:340});a.captureOpener({click(){clicks++;}});
+ for(let i=0;i<4;i++){
+  collapsed=true;assert.equal(a.measureNativeSidebar(),false);assert.equal(a.sidebarWidth(),52);a.tryExpandNativeSidebar();assert.equal(clicks,0);
+  collapsed=false;assert.equal(a.measureNativeSidebar(),true);assert.equal(a.sidebarWidth(),340);
+  a.settings({sidebarVisible:false,sidebarWidth:340});assert.equal(a.sidebarWidth(),0);
+  a.settings({sidebarVisible:true,sidebarWidth:340});assert.equal(a.sidebarWidth(),340);
+ }
+ collapsed=true;assert.equal(a.sidebarWidth(),52);
+ present=false;assert.equal(a.nativeRailState(),null);assert.equal(a.sidebarWidth(),340);
+ present=true;assert.equal(a.sidebarWidth(),52);
+});
+
+test('sidebar observer watches native collapse and peek attributes inside the pinned panel',()=>{
+ let callback,options,scheduled=0;const inner={nodeType:1,id:''};
+ const native={nodeType:1,childElementCount:1,setAttribute(){},removeAttribute(){},contains:n=>n===inner};
+ const doc={getElementById(){},querySelectorAll:()=>[native],createElement:()=>({textContent:'',remove(){}}),documentElement:{appendChild(){}},addEventListener(){}};
+ const {a}=harness({document:doc,MutationObserver:class{constructor(fn){callback=fn;}observe(el,o){options=o;}},requestAnimationFrame(){scheduled++;return 1;},addEventListener(){}});
+ a.set([]);a.pinMasterSidebar();a.startMasterWatch();
+ for(const name of ['data-sidebar-collapsed','data-slate-sidebar-peeking','data-app-shell-sidebar-open'])assert.ok(options.attributeFilter.includes(name));
+ callback([{type:'attributes',target:inner}]);callback([{type:'attributes',target:inner}]);assert.equal(scheduled,1);
 });

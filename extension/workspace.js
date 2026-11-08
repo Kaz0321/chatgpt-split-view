@@ -116,7 +116,17 @@
     contentLayoutTimer=setTimeout(refreshContentLayout,100);
   }
 
+  // Modern ChatGPT keeps the rail mounted while its conversation list peeks.
+  // Its forced outer width is not evidence that the list is expanded.
+  function nativeRailState() {
+    const content=document.querySelector?.('[data-slate-sidebar-content]');
+    const rail=document.querySelector?.('[data-app-navigation-rail]');
+    if(!content||!rail)return null;
+    return {collapsed:content.hasAttribute('data-sidebar-collapsed'),width:Math.max(0,rail.getBoundingClientRect().width)};
+  }
+
   function measureNativeSidebar() {
+    if(nativeRailState()?.collapsed)return false;
     const selectors = '.app-shell-left-panel, #app-shell-sidebar, #ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]';
     const nodes = Array.from(document.querySelectorAll(selectors));
     // Some ChatGPT variants expose the expanded pane as a nav/aside landmark.
@@ -141,6 +151,8 @@
 
   function sidebarWidth() {
     if(!settings.sidebarVisible)return 0;
+    const rail=nativeRailState();
+    if(settings.keepMasterSidebar&&rail?.collapsed&&rail.width>0)return rail.width;
     return Math.min(settings.sidebarWidth,Math.max(120,(window.innerWidth||1024)-40-320));
   }
 
@@ -172,6 +184,8 @@
 
   function tryExpandNativeSidebar(userInitiated = false) {
     if (!state.enabled || !settings.sidebarVisible || !settings.keepMasterSidebar || measureNativeSidebar()) {pendingOpener=null;return true;}
+    // Respect the native rail's pin/peek state; never turn a hover into a click loop.
+    if(nativeRailState())return false;
     const opener=findNativeOpener();
     // One automatic attempt per visible opener episode. No polling/double clicks.
     if(!opener||(!userInitiated&&pendingOpener===opener))return false;
@@ -186,9 +200,9 @@
   function startMasterWatch() {
     if(masterObserver||typeof MutationObserver!=='function')return;
     const relevant=node=>node?.nodeType===1&&node.id!=='cgww-host'&&node.id!=='cgww-master-pin'&&
-      (node===document.body||node===document.documentElement||node===pinnedMaster||node.contains?.(pinnedMaster)||node.matches?.(SIDE_NAV+', button')||node.querySelector?.(SIDE_NAV));
+      (node===document.body||node===document.documentElement||node===pinnedMaster||pinnedMaster?.contains?.(node)||node.contains?.(pinnedMaster)||node.matches?.(SIDE_NAV+', button')||node.querySelector?.(SIDE_NAV));
     masterObserver=new MutationObserver(records=>{if(records.some(r=>r.type==='attributes'?relevant(r.target):Array.from(r.addedNodes||[]).concat(Array.from(r.removedNodes||[])).some(relevant)))scheduleMasterSidebar();});
-    masterObserver.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','aria-expanded']});
+    masterObserver.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','aria-expanded','data-sidebar-collapsed','data-slate-sidebar-peeking','data-app-shell-sidebar-open']});
     window.addEventListener('resize',scheduleMasterSidebar);document.addEventListener('transitionend',scheduleMasterSidebar,true);
   }
 
@@ -268,7 +282,7 @@
 
   function updateFallbackDock() {
     if (!fallbackDock) return;
-    const needsFallback = state.enabled && settings.sidebarVisible && settings.keepMasterSidebar && !measureNativeSidebar();
+    const needsFallback = state.enabled && settings.sidebarVisible && settings.keepMasterSidebar && !nativeRailState() && !measureNativeSidebar();
     fallbackDock.hidden = !needsFallback;
     if (!needsFallback || !fallbackList) return;
     const signature=JSON.stringify(state.panes.map(p=>[p.id,p.title,p.visible]));
@@ -847,7 +861,7 @@
 
   function updateGeometry() {
     if (panel){panel.style.left = `${40+sidebarWidth()}px`;panel.style.top='0px';}
-    if(sidebarHandle){sidebarHandle.hidden=!state.enabled||!settings.sidebarVisible;sidebarHandle.style.left=`${40+sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
+    if(sidebarHandle){sidebarHandle.hidden=!state.enabled||!settings.sidebarVisible||nativeRailState()?.collapsed===true;sidebarHandle.style.left=`${40+sidebarWidth()-3}px`;sidebarHandle.setAttribute('aria-disabled',String(settings.sidebarLocked));sidebarHandle.setAttribute('aria-valuenow',String(settings.sidebarWidth));sidebarHandle.setAttribute('aria-valuemin','180');sidebarHandle.setAttribute('aria-valuemax','520');}
     if (fallbackDock){fallbackDock.style.left='40px';fallbackDock.style.width = `${sidebarWidth()}px`;}
     applyColumnWidths();
   }

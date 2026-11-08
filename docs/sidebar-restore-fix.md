@@ -18,3 +18,14 @@
 これらはNodeのDOM代替テストであり、実座標クリック・実レイアウトの確認ではない。実Chromeは以前からタブ接続内部エラー／現在URL確認不能で安全停止しており、実画面で今回の報告と同じ原因かは未確定。安全停止は迂回していない。
 
 実画面復旧後に「左一覧を隠す」と「タブ管理を閉じる」を別々に試し、縦バーが残ること、一覧DOMの再描画後も戻せること、リロード後の復元、元画面／分割の往復を確認する。
+
+
+## v1.0.2: native hover/collapse state
+
+Observed on authenticated Chrome before the fix: the extension pinned a 340px outer sidebar while the native 52px rail remained visible and the conversation list had `data-sidebar-collapsed`. The native list had zero measured width. Clicking Home temporarily exposed 284px of list content; moving to the extension hide/show control collapsed it again, leaving the forced 340px allocation. Four conversation iframes remained mounted throughout.
+
+The patch reads the native content's collapsed state independently of the forced outer width, allocates only the measured rail width while collapsed, suppresses the legacy fallback over a valid modern rail, and observes collapse/peek/pin attributes plus mutations inside the pinned sidebar. It does not synthesize native clicks, change the user's pin preference or stored sidebar width, or touch conversation drafts. The resize handle is hidden when only the rail is visible.
+
+Regression tests cover closed/expanded/closed and pinned/unpinned semantic states, extension hide/show, native DOM removal/replacement (navigation), and observer batching. These are automated DOM simulations, not claims of authenticated browser post-fix coverage. Direct hover movement is unavailable in the current browser API. Before-fix authenticated reproduction and after-fix source tests must be distinguished.
+
+Validation result: all 236 automated tests pass; syntax/version checks pass. A production-source local browser fixture was prepared, but Chrome could not open the localhost server (connection timeout), so post-fix browser behavior remains unverified. Existing authenticated tabs were not reloaded, preserving their current input.
