@@ -386,6 +386,7 @@
         if(entry.wideButton){const wide=isSplitWide(pane);entry.wideButton.setAttribute('aria-pressed',String(wide));entry.wideButton.setAttribute('aria-label',wide?'この列の幅を戻す':'この列を広げる');entry.wideButton.title=wide?'一時拡張を解除':'レビュー・分割画面用にこの列だけ広げる';}
         entry.root.classList.toggle('folded',pane.folded===true);
         if(entry.restoreButton)entry.restoreButton.hidden=!pane.folded;
+        if(entry.foldedCloseButton){entry.foldedCloseButton.hidden=!pane.folded;entry.foldedCloseButton.setAttribute('aria-label',`${pane.title} の縮小タブを閉じる`);}
         if(entry.foldButton)entry.foldButton.setAttribute('aria-expanded',String(!pane.folded));
         if(entry.spine){entry.spine.setAttribute('aria-label',`${pane.title} を${pane.folded?'展開':'折りたたむ'}`);entry.spine.setAttribute('aria-expanded',String(!pane.folded));entry.spine.firstChild.textContent=pane.title;}
       }
@@ -594,7 +595,8 @@
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
       .scroller{flex:1;min-height:0;display:flex;gap:4px;padding:4px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
-      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:32px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .pane-folded-close{position:absolute;bottom:0;left:0;z-index:3;width:100%;height:32px;padding:0;border:0;border-top:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#526579;cursor:pointer}.pane-folded-close:hover{background:#fbe4e4;color:#a52222}.pane-folded-close:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
       .pane-control{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:3px;height:24px;min-width:24px;padding:0 5px;border:1px solid transparent;border-radius:4px;background:transparent;color:#526579;font-size:12px;line-height:1;vertical-align:middle}
       .pane-control:hover{border-color:#d7e1eb;background:#edf2f7;color:#243b51}.pane-control:active{background:#dfe8f1}
@@ -726,6 +728,14 @@
     (p.folded?entry?.restoreButton:entry?.foldButton)?.focus();
   }
 
+  function foldAllPanes() {
+    if(!state.enabled)return;
+    const expanded=state.panes.filter(p=>p.visible&&!p.folded);
+    if(!expanded.length)return;
+    for(const p of expanded)p.folded=true;
+    applyColumnWidths();markActive();safeSave();syncOverlay();
+  }
+
   function restoreParkedPane(p) {
     p.visible=true;state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();syncOverlay();
   }
@@ -840,7 +850,7 @@
     const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
     const sidebarLock=button('ロック','左一覧の幅変更をロック・解除',()=>{settings.sidebarLocked=!settings.sidebarLocked;updateGeometry();savePrefs();safeSave();syncOverlay();});sidebarLock.setAttribute('aria-label','左一覧幅のロック');
     sideRow.append(create('label','','左一覧幅 (px)'),sidebar,sidebarApply);row().append(sidebarReset,sidebarLock);
-    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');tabsSection.replaceChildren(parkedHeading,parkedList,url);overlayMenu.append(tabsSection,restoreBadge,groupsSection);groupsSection.appendChild(create('h3','','タブグループ'));rowTarget=tabsSection;
+    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');const foldAll=button('全部縮小','表示中のタブをすべて折りたたむ（ページと入力を保持）',foldAllPanes);foldAll.setAttribute('aria-label','全部縮小');tabsSection.replaceChildren(parkedHeading,foldAll,parkedList,url);overlayMenu.append(tabsSection,restoreBadge,groupsSection);groupsSection.appendChild(create('h3','','タブグループ'));rowTarget=tabsSection;
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);tabsSection.appendChild(historyPanel);rowTarget=groupsSection;
     const groupSaveDetails=create('div','group-save-form');groupSaveDetails.hidden=true;groupSaveDetails.id='cgww-group-save-form';
@@ -851,7 +861,7 @@
     row().appendChild(button('保存済みタブグループを表示','名前付きグループと以前の作業の一覧を表示',showSavedWorkspaces));const savedList=create('div','saved-groups');groupsSection.appendChild(savedList);groupsSection.appendChild(groupSaveDetails);rowTarget=displaySettings;
     displaySettings.appendChild(create('p','overlay-note','その他の設定では本文余白・既定の表示設定・設定JSONの入出力を変更できます。'));
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={groupStart,groupSaveDetails,groupCancel,displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={foldAll,groupStart,groupSaveDetails,groupCancel,displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -1206,6 +1216,12 @@
     const spine=button('','列を折りたたむ / 展開',()=>setPaneFolded(p,!p.folded),'pane-spine');
     spine.appendChild(create('span','',p.title));root.appendChild(spine);
     const restoreButton=button('□','この列を元の幅に復元',()=>setPaneFolded(p,false),'pane-restore');restoreButton.setAttribute('aria-label','この列を復元');root.appendChild(restoreButton);
+    const foldedCloseButton=button('×','この縮小タブを閉じる',event=>{
+      event.stopImmediatePropagation();closePane(p);
+      const next=paneNodes.get(state.activeId);
+      (state.panes.find(x=>x.id===state.activeId)?.folded?next?.restoreButton:next?.foldButton)?.focus();
+      if(!next)launcher?.focus();
+    },'pane-folded-close');foldedCloseButton.setAttribute('aria-label',`${p.title} の縮小タブを閉じる`);root.appendChild(foldedCloseButton);
     const head = create('div', 'pane-head');
     const grip=button('⠿','列をドラッグで移動',()=>{state.activeId=p.id;markActive();},'pane-control drag-grip');head.appendChild(grip);
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
@@ -1260,7 +1276,7 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, wideButton });
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, wideButton });
     attachPaneDrag(root,grip,p);syncPaneOrder();applyColumnWidths();
   }
 

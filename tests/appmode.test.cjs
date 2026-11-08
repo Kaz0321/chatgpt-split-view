@@ -14,7 +14,7 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={setTimeout:()=>1,clearTimeout(){},Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={foldAllPanes,refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {panel,overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
@@ -311,4 +311,19 @@ test('live layout refresh expands and restores one frame without feeding split w
  p.folded=true;h.a.resizeSplitWidth(p,1600);h.a.refreshContentLayout();p.folded=false;assert.equal(h.a.getPaneWidth(p),1600);
  d.open=false;h.a.refreshContentLayout();assert.equal(h.a.getPaneWidth(p),800);assert.equal(h.a.getPaneWidth(q),800);
  d.open=true;h.a.refreshContentLayout();h.a.entries().get('a').iframe.contentWindow.location.origin='https://example.com';h.a.refreshContentLayout();assert.equal(h.a.getPaneWidth(p),800);
+});
+
+test('fold all retains documents, inputs, widths, active pane and hidden legacy panes; individual restore works',()=>{
+ const h=harness(),panes=[{id:'a',title:'A',visible:true,width:480,draft:'A input'},{id:'b',title:'B',visible:true,width:600,folded:true},{id:'c',title:'C',visible:false,width:700}];
+ h.a.init(panes);h.a.enabled(true);for(const p of panes)h.a.realRender(p);h.a.state().activeId='a';h.a.makeOverlay();
+ const frames=panes.map(p=>{const f={draft:'live '+p.id};h.a.entries().get(p.id).iframe=f;return f;});
+ h.a.ui().menuControls.foldAll.emit('click');assert.equal(panes[0].folded,true);assert.equal(panes[1].folded,true);assert.equal(panes[2].folded,undefined);assert.equal(panes[2].visible,false);assert.equal(h.a.state().activeId,'a');
+ const saves=h.saves.length;h.a.ui().menuControls.foldAll.emit('click');assert.equal(h.saves.length,saves);
+ panes.forEach((p,i)=>{assert.equal(h.a.entries().get(p.id).iframe,frames[i]);assert.equal(frames[i].draft,'live '+p.id);});
+ const e=h.a.entries().get('a');assert.equal(e.foldedCloseButton.hidden,false);e.restoreButton.emit('click');assert.equal(e.root.style.width,'480px');assert.equal(e.foldedCloseButton.hidden,true);assert.equal(panes[0].draft,'A input');
+});
+test('folded close is a separate control that calls normal close without restoring',()=>{
+ const h=harness(),p={id:'a',title:'A',visible:true,width:480};h.a.init([p]);h.a.enabled(true);h.a.realRender(p);const e=h.a.entries().get('a');
+ assert.equal(e.foldedCloseButton.hidden,true);e.foldButton.emit('click');assert.equal(e.foldedCloseButton.hidden,false);
+ const event=e.foldedCloseButton.emit('click');assert.equal(event.stopped,true);assert.equal(h.a.state().panes.length,0);assert.equal(h.a.entries().has('a'),false);assert.equal(p.folded,true);
 });
