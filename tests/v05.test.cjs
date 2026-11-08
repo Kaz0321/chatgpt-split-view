@@ -8,3 +8,15 @@ test('sidebar width leaves readable column space when narrowing',()=>{const{a,ct
 test('automatic opener is not clicked twice in same missing episode',()=>{const{a}=harness();a.set([]);a.captureMeasure(false);let clicks=0;a.captureOpener({click(){clicks++;}});a.tryExpandNativeSidebar();a.tryExpandNativeSidebar();assert.equal(clicks,1);a.tryExpandNativeSidebar(true);assert.equal(clicks,2);});
 test('native parent pin is reversible and does not write existing inline styles',()=>{let attrs={},removed=0,style={textContent:'',remove(){removed++;}};const native={childElementCount:1,setAttribute(k,v){attrs[k]=v;},removeAttribute(k){delete attrs[k];}};const{a}=harness({document:{getElementById(){},querySelectorAll(){return[native];},createElement(){return style;},documentElement:{appendChild(){}}}});a.set([]);a.pinMasterSidebar();assert.equal(attrs['data-cgww-master-sidebar'],'true');assert.match(style.textContent,/position:fixed!important/);a.releaseMasterSidebar();assert.equal(attrs['data-cgww-master-sidebar'],undefined);assert.equal(removed,1);});
 test('source removes persistent toolbar/insertion and declares actual action popup',()=>{const s=fs.readFileSync(require.resolve('../extension/workspace.js'),'utf8'),m=require('../extension/manifest.json');assert.equal(s.includes("const toolbar = create("),false);assert.equal(s.includes("button('✓'"),false);assert.equal(s.includes("button('×'"),true);assert.equal(s.includes('setInterval(ensureMasterSidebar'),false);assert.equal(m.action.default_popup,'popup.html');});
+
+test('showing sidebar clears hide CSS even while native sidebar is absent, then repins a replacement',()=>{
+ let native=null;const styles=[];const doc={getElementById(){return null;},querySelectorAll(){return native?[native]:[];},createElement(){const style={textContent:'',removed:false,remove(){this.removed=true;}};styles.push(style);return style;},documentElement:{appendChild(){}}};
+ const {a}=harness({document:doc});a.set([]);
+ for(let cycle=0;cycle<3;cycle++){
+  a.settings({sidebarVisible:false});a.pinMasterSidebar();const hidden=styles.at(-1);assert.match(hidden.textContent,/display:none!important/);
+  native=null;a.settings({sidebarVisible:true});a.pinMasterSidebar();assert.equal(hidden.removed,true,'hide rule must not survive missing native DOM');
+  let clicks=0;a.captureMeasure(false);a.captureOpener({click(){clicks++;}});a.tryExpandNativeSidebar();assert.equal(clicks,1);
+  const attrs={};native={childElementCount:1,isConnected:true,setAttribute(k,v){attrs[k]=v;},removeAttribute(k){delete attrs[k];}};
+  a.pinMasterSidebar();assert.equal(attrs['data-cgww-master-sidebar'],'true');assert.match(styles.at(-1).textContent,/display:block!important/);
+ }
+});

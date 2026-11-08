@@ -269,3 +269,12 @@ test('gear opens extension options directly without changing panes or mode',()=>
  assert.equal(messages.length,1);assert.equal(messages[0].type,'CGWW_OPEN_OPTIONS');assert.equal(h.a.state().enabled,true);assert.deepEqual(h.a.state().panes,before);
  assert.equal(u.overlay.children.indexOf(u.menuControls.sidebarVisible),u.overlay.children.indexOf(u.launcher)+1);
 });
+
+test('hide and restore keep both rail controls usable with the same frame and width',()=>{
+ const h=harness(),p={id:'keep',url:Core.ORIGIN+'/c/thread123',visible:true,width:480};h.a.init([p]);h.a.makeOverlay();h.a.setEnabled(true);const u=h.a.ui(),frame=h.a.entries().get(p.id).iframe;
+ for(const width of [360,768,1844]){h.ctx.innerWidth=width;
+  u.menuControls.sidebarVisible.emit('click');assert.equal(h.a.settings().sidebarVisible,false);assert.equal(u.overlay.hidden,false);assert.equal(u.menuControls.sidebarVisible.disabled,false);assert.equal(u.panel.style.left,'40px');
+  u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);u.menuControls.close.emit('click');assert.equal(u.overlayMenu.hidden,true);
+  u.menuControls.sidebarVisible.emit('click');assert.equal(h.a.settings().sidebarVisible,true);assert.equal(u.overlay.hidden,false);assert.ok(parseFloat(u.panel.style.left)>40);assert.equal(h.a.entries().get(p.id).iframe,frame);assert.equal(p.width,480);
+ }
+});

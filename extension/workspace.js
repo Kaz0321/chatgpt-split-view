@@ -24,7 +24,7 @@
   let sidebarHandle;
   let fallbackDock, fallbackList, equalButton, maxWidthNote, nativeSidebarCheck;
   let geometryObserver = null;
-  let masterObserver=null,masterFrame=null,masterStyle=null,pinnedMaster=null,pendingOpener=null;
+  let masterObserver=null,masterFrame=null,masterStyle=null,pinnedMaster=null,pendingOpener=null,masterSidebarHidden=false;
   let nativeMenuObserver=null,nativeMenuFrame=null,nativeMenuStyle=null;
   const nativeMenuMarks=new Map();
   const ACTION_MENU='[role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [data-radix-menu-content], [aria-haspopup="menu"], [aria-haspopup="true"]';
@@ -146,16 +146,20 @@
 
   function releaseMasterSidebar() {
     if(pinnedMaster){pinnedMaster.removeAttribute('data-cgww-master-sidebar');pinnedMaster=null;}
-    masterStyle?.remove();masterStyle=null;pendingOpener=null;
+    masterStyle?.remove();masterStyle=null;pendingOpener=null;masterSidebarHidden=false;
   }
 
   function pinMasterSidebar() {
     if(!state.enabled){releaseMasterSidebar();return;}
     if(!settings.sidebarVisible){
+      masterSidebarHidden=true;
       if(!masterStyle){masterStyle=document.createElement('style');masterStyle.id='cgww-master-pin';document.documentElement.appendChild(masterStyle);}
       const css=SIDE_NAV+'{display:none!important;visibility:hidden!important;pointer-events:none!important}';
       if(masterStyle.textContent!==css)masterStyle.textContent=css;return;
     }
+    // Native sidebar nodes can be unmounted while hidden. Remove our hiding rule
+    // before looking for a replacement or its opener; otherwise neither can recover.
+    if(masterSidebarHidden)releaseMasterSidebar();
     if(!settings.keepMasterSidebar){releaseMasterSidebar();return;}
     const candidates=Array.from(document.querySelectorAll('.app-shell-left-panel, #app-shell-sidebar, #ds-sidebar, #stage-slideover-sidebar, [data-testid="sidebar"], [data-testid="sidebar-navigation"]'));
     const native=candidates.find(el=>el.childElementCount>0);
