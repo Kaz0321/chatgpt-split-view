@@ -13,8 +13,8 @@ function harness(extra={}) {
     emit(type,more={}){const e={target:this,button:0,clientX:0,clientY:0,preventDefault(){this.defaultPrevented=true;},stopImmediatePropagation(){this.stopped=true;},composedPath:()=>[this],...more};for(const f of this.listeners[type]||[])f(e);return e;}
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
-  let serial=0;const saves=[],ctx={Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+  let serial=0;const saves=[],ctx={setTimeout:()=>1,clearTimeout(){},Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {panel,overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
@@ -277,4 +277,38 @@ test('hide and restore keep both rail controls usable with the same frame and wi
   u.launcher.emit('click');assert.equal(u.overlayMenu.hidden,false);u.menuControls.close.emit('click');assert.equal(u.overlayMenu.hidden,true);
   u.menuControls.sidebarVisible.emit('click');assert.equal(h.a.settings().sidebarVisible,true);assert.equal(u.overlay.hidden,false);assert.ok(parseFloat(u.panel.style.left)>40);assert.equal(h.a.entries().get(p.id).iframe,frame);assert.equal(p.width,480);
  }
+});
+
+
+test('split panel expands only its pane and restores original width and settings on close',()=>{
+ const h=harness({CGWWLayout:{splitPanelOpen:d=>d.open}}),p={id:'a',title:'A',visible:true,width:480,autoWidth:false,draft:'keep'},q={id:'b',visible:true,width:600};
+ h.a.init([p,q]);const doc={open:false};const before=JSON.stringify(p);h.a.syncSplitPane(p,doc,'/c/a');assert.equal(h.a.getPaneWidth(p),480);
+ doc.open=true;h.a.syncSplitPane(p,doc,'/c/a');assert.equal(h.a.getPaneWidth(p),1100);assert.equal(h.a.getPaneWidth(q),600);
+ h.a.resizeSplitWidth(p,1600);assert.equal(h.a.getPaneWidth(p),1600);assert.equal(JSON.stringify(p),before);
+ doc.open=false;h.a.syncSplitPane(p,doc,'/c/a');assert.equal(h.a.getPaneWidth(p),480);assert.equal(JSON.stringify(p),before);
+});
+test('equalized siblings keep their width; manual split override resets on close or navigation',()=>{
+ const h=harness({CGWWLayout:{splitPanelOpen:d=>d.open}}),p={id:'a',visible:true,width:480},q={id:'b',visible:true,width:600};h.a.init([p,q]);h.a.prefs({equalizeColumns:true});
+ const initial=h.a.getPaneWidth(q),doc={open:true};h.a.syncSplitPane(p,doc,'/c/a');assert.equal(h.a.getPaneWidth(q),initial);assert.equal(h.a.getPaneWidth(p),1100);
+ h.a.toggleSplitWidth(p);assert.equal(h.a.getPaneWidth(p),initial);h.a.syncSplitPane(p,doc,'/c/a');assert.equal(h.a.isSplitWide(p),false);
+ doc.open=false;h.a.syncSplitPane(p,doc,'/c/a');doc.open=true;h.a.syncSplitPane(p,doc,'/c/a');assert.equal(h.a.isSplitWide(p),true);
+ h.a.resizeSplitWidth(p,1700);h.a.syncSplitPane(p,{open:false},'/c/b');assert.equal(h.a.getPaneWidth(p),initial);assert.equal(h.a.settings().equalizeColumns,true);
+});
+test('wide button is reversible, preserves frame and drafts, and works without detection',()=>{
+ const h=harness(),p={id:'a',title:'A',visible:true,width:480,draft:'keep'};h.a.init([p]);h.a.enabled(true);h.a.realRender(p);const e=h.a.entries().get('a'),frame={draft:'live'};e.iframe=frame;
+ e.wideButton.emit('click');assert.equal(e.root.style.width,'1100px');assert.equal(e.wideButton.getAttribute('aria-pressed'),'true');
+ h.a.syncSplitPane(p,{},'/c/a');assert.equal(h.a.isSplitWide(p),true,'first inspection must retain manual widening');
+ e.foldButton.emit('click');assert.equal(e.root.style.width,'32px');e.restoreButton.emit('click');assert.equal(e.root.style.width,'1100px');
+ e.wideButton.emit('click');assert.equal(e.root.style.width,'480px');assert.equal(e.iframe,frame);assert.equal(frame.draft,'live');assert.equal(p.draft,'keep');assert.equal(e.wideButton.getAttribute('aria-pressed'),'false');
+});
+
+test('live layout refresh expands and restores one frame without feeding split widths into siblings',()=>{
+ const applied=[],inspected=[];const h=harness({CGWWLayout:{splitPanelOpen:d=>d.open,inspect:d=>{inspected.push(d);return {detected:true,outerMax:800,columns:[{contentMax:768}],scrollbarAllowance:0};},apply:(d,m)=>applied.push([d,m.columns.length])}});
+ const p={id:'a',visible:true,autoWidth:true},q={id:'b',visible:true,autoWidth:true};h.a.init([p,q]);h.a.nativeCap(800);
+ const d={open:true},other={open:false};
+ for(const [pane,doc] of [[p,d],[q,other]])h.a.entries().set(pane.id,{root:new h.Element(),iframe:{_cgwwPane:pane,contentDocument:doc,contentWindow:{location:{origin:'https://chatgpt.com',href:'/c/'+pane.id}}}});
+ h.a.refreshContentLayout();assert.equal(h.a.getPaneWidth(p),1100);assert.equal(h.a.getPaneWidth(q),800);assert.equal(inspected.includes(d),false);assert.ok(applied.some(([doc,n])=>doc===d&&n===0));
+ p.folded=true;h.a.resizeSplitWidth(p,1600);h.a.refreshContentLayout();p.folded=false;assert.equal(h.a.getPaneWidth(p),1600);
+ d.open=false;h.a.refreshContentLayout();assert.equal(h.a.getPaneWidth(p),800);assert.equal(h.a.getPaneWidth(q),800);
+ d.open=true;h.a.refreshContentLayout();h.a.entries().get('a').iframe.contentWindow.location.origin='https://example.com';h.a.refreshContentLayout();assert.equal(h.a.getPaneWidth(p),800);
 });

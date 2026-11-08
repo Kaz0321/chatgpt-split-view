@@ -8,6 +8,7 @@
   if (window !== window.top || !window.CGWWCore || document.getElementById('cgww-host')) return;
   const Core = window.CGWWCore;
   const Layout = window.CGWWLayout;
+  const splitWidths = new WeakMap();
   const Drafts = window.CGWWDrafts;
   let workspaceId = null;
   let initializing=false,initialized=false,restoringWorkspace=false,durableToken=null,saveSequence=0,pendingSnapshot=null,saveInFlight=false;
@@ -95,20 +96,28 @@
     const native=Layout.inspect(document,{compact:true,gutter:settings.contentPadding});
     const nativeContentMax=native.detected&&native.columns?.length?Math.max(...native.columns.map(c=>c.contentMax)):undefined;
     const caps=native.detected?[native.outerMax]:[];let unknownFrame=false;
+    let splitChanged=false;
     for(const entry of paneNodes.values()){
       const frame=entry.iframe;
       try{
-        if(!frame?.contentDocument||frame.contentWindow.location.origin!==Core.ORIGIN)continue;
+        if(frame?._cgwwPane?.folded)continue;
+        if(!frame?.contentDocument||frame.contentWindow.location.origin!==Core.ORIGIN){
+          if(frame?._cgwwPane)splitChanged=splitWidths.delete(frame._cgwwPane)||splitChanged;
+          continue;
+        }
         const doc=frame.contentDocument;
+        splitChanged=syncSplitPane(frame._cgwwPane,doc,frame.contentWindow.location.href)||splitChanged;
+        if(isSplitWide(frame._cgwwPane)){Layout.apply(doc,{columns:[]});continue;}
         if(frame._cgwwContentDocument!==doc){frame._cgwwContentDocument=doc;frame._cgwwScrollbarAllowance=0;}
         const measurement=Layout.inspect(doc,{compact:true,gutter:settings.contentPadding,contentMax:nativeContentMax,scrollbarAllowance:frame._cgwwScrollbarAllowance||0});
         frame._cgwwScrollbarAllowance=measurement.scrollbarAllowance;
         Layout.apply(doc,measurement);
         if(measurement.detected)caps.push(measurement.outerMax);else unknownFrame=true;
-      }catch{/* Authentication or cross-origin documents stay untouched. */}
+      }catch{if(frame?._cgwwPane)splitChanged=splitWidths.delete(frame._cgwwPane)||splitChanged;/* Do not inspect cross-origin pages. */}
     }
-    const detected=caps.length>0&&!unknownFrame,next=detected?Math.max(...caps):1400;
+    const detected=caps.length>0?!unknownFrame:(!unknownFrame&&contentWidthDetected),next=detected&&caps.length?Math.max(...caps):(unknownFrame?1400:originalMaxWidth);
     if(next!==originalMaxWidth||detected!==contentWidthDetected){originalMaxWidth=next;contentWidthDetected=detected;applyColumnWidths();syncOverlay();}
+    else if(splitChanged)applyColumnWidths();
   }
 
   function scheduleContentLayout() {
@@ -329,7 +338,35 @@
     updateGeometry();updateFallbackDock();
   }
 
+  function syncSplitPane(pane,doc,route) {
+    if(!pane)return false;
+    let value=splitWidths.get(pane),changed=false;
+    if(value&&!value.doc&&!value.route){value.doc=doc;value.route=route;}
+    if(!value||value.doc!==doc||value.route!==route){value={doc,route,detected:false,manual:null,width:null};splitWidths.set(pane,value);changed=true;}
+    const detected=Layout?.splitPanelOpen?.(doc)===true;
+    if(value.detected!==detected){
+      if(!detected){value.manual=null;value.width=null;}
+      value.detected=detected;changed=true;
+    }
+    return changed;
+  }
+  function isSplitWide(pane) {const v=splitWidths.get(pane);return !!v&&(v.manual??v.detected);}
+  function toggleSplitWidth(pane) {
+    let v=splitWidths.get(pane);
+    if(!v){v={doc:null,route:null,detected:false,manual:null,width:null};splitWidths.set(pane,v);}
+    v.manual=!isSplitWide(pane);v.width=null;applyColumnWidths();scheduleContentLayout();
+  }
+  function resizeSplitWidth(pane,width) {
+    if(!isSplitWide(pane))return false;
+    splitWidths.get(pane).width=Core.boundedNumber(width,1100,320,2400);return true;
+  }
   function getPaneWidth(pane) {
+    const base=getBasePaneWidth(pane);
+    if(pane.folded||!isSplitWide(pane))return base;
+    const v=splitWidths.get(pane);
+    return v.width??Math.max(base,Math.min(1800,Math.max(1100,scroller?.clientWidth||window.innerWidth-40-sidebarWidth())));
+  }
+  function getBasePaneWidth(pane) {
     if(pane.folded)return 32;
     if (settings.equalizeColumns) {
       const visibleCount = state.panes.filter(p => p.visible&&!p.folded).length;
@@ -346,6 +383,7 @@
       const entry = paneNodes.get(pane.id);
       if (entry) {
         entry.root.style.width = `${getPaneWidth(pane)}px`;
+        if(entry.wideButton){const wide=isSplitWide(pane);entry.wideButton.setAttribute('aria-pressed',String(wide));entry.wideButton.setAttribute('aria-label',wide?'この列の幅を戻す':'この列を広げる');entry.wideButton.title=wide?'一時拡張を解除':'レビュー・分割画面用にこの列だけ広げる';}
         entry.root.classList.toggle('folded',pane.folded===true);
         if(entry.restoreButton)entry.restoreButton.hidden=!pane.folded;
         if(entry.foldButton)entry.foldButton.setAttribute('aria-expanded',String(!pane.folded));
@@ -758,7 +796,7 @@
       frame._cgwwClosed=true;
       entry.iframe=null;
     }
-    entry?.root.remove();paneNodes.delete(p.id);
+    entry?.root.remove();paneNodes.delete(p.id);splitWidths.delete(p);
     state.panes=state.panes.filter(x=>x.id!==p.id);
     if(p.url)closedPanes.unshift({id:newId(),url:p.url,title:p.title,width:p.width,...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}),...(p.newChat?{newChat:true}:{})});
     closedPanes=closedPanes.slice(0,200);
@@ -1097,7 +1135,7 @@
         // Hydrated/replaced navigation is usually below <body>, not a direct
         // <html> child. This remains active even when parent pinning is off.
         observer.observe(doc.documentElement, { childList: true, subtree: true,
-          attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+          attributes: true, attributeFilter: ['class', 'style', 'hidden', 'data-app-shell-trailing-sidebar-visible'] });
         frame._cgwwFrameObserver = observer;
         // A new stylesheet may finish loading after the DOM mutation callback.
         // Recheck once layout is ready, independently of parent-sidebar pinning.
@@ -1183,6 +1221,7 @@
     const linkButton=button('リンク','このタブのURLをコピー',()=>copyPaneUrl(p),'pane-control pane-link');linkButton.setAttribute('aria-label','このタブのURLをコピー');head.appendChild(linkButton);
     const nativeButton=button('…','ChatGPTの会話メニューを開く',()=>openPaneNativeMenu(p),'pane-control pane-more');nativeButton.setAttribute('aria-label','ChatGPTの会話メニューを開く');head.appendChild(nativeButton);
     const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
+    const wideButton=button('↔','レビュー・分割画面用にこの列だけ広げる',()=>toggleSplitWidth(p),'pane-control');wideButton.setAttribute('aria-label','この列を広げる');wideButton.setAttribute('aria-pressed','false');head.appendChild(wideButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
     const main = create('div', 'pane-main');
@@ -1195,12 +1234,14 @@
     resizer.title = 'ドラッグでこの列の幅を変更';
     resizer.addEventListener('pointerdown', event => {
       if (event.button !== 0) return;
-      if (settings.equalizeColumns) { setStatus('等分モード中です。ドラッグで変更するには「等分: OFF」にしてください。'); return; }
+      if (settings.equalizeColumns && !isSplitWide(p)) { setStatus('等分モード中です。ドラッグで変更するには「等分: OFF」にしてください。'); return; }
       event.preventDefault(); resizer.setPointerCapture(event.pointerId);
       const start = event.clientX, initial = getPaneWidth(p);
       const move = e => {
-        p.autoWidth=false;
-        p.width = Core.boundedNumber(initial + (e.clientX - start), initial, 320, originalMaxWidth);
+        if(!resizeSplitWidth(p,initial+(e.clientX-start))){
+          p.autoWidth=false;
+          p.width = Core.boundedNumber(initial + (e.clientX - start), initial, 320, originalMaxWidth);
+        }
         root.style.width = `${getPaneWidth(p)}px`;
       };
       const stop = () => {
@@ -1219,7 +1260,7 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton });
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, wideButton });
     attachPaneDrag(root,grip,p);syncPaneOrder();applyColumnWidths();
   }
 

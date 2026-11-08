@@ -103,6 +103,13 @@
     if(!style){style=doc.createElement('style');style.id=STYLE_ID;doc.documentElement.appendChild(style);}
     if(style.textContent!==rules)style.textContent=rules;
   }
-  const api={COLUMN_ATTR,STYLE_ID,GUTTER,pixels,columnGeometry,requiredOuterWidth,findColumns,inspect,apply};
+  function splitPanelOpen(doc) {
+    // Native app-shell signal, not words in messages, menus or tooltips.
+    const shell=doc?.querySelector?.('[data-app-shell-trailing-sidebar-visible="true"]');
+    if(!shell)return false;
+    const r=shell.getBoundingClientRect(),style=doc.defaultView?.getComputedStyle(shell);
+    return r.width>0&&r.height>0&&style?.display!=='none'&&style?.visibility!=='hidden';
+  }
+  const api={splitPanelOpen,COLUMN_ATTR,STYLE_ID,GUTTER,pixels,columnGeometry,requiredOuterWidth,findColumns,inspect,apply};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CGWWLayout=api;
 })(globalThis);

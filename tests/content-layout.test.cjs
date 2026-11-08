@@ -46,3 +46,11 @@ test('a nested scroll container contributes its gutter without counting borders 
  const measured=L.inspect(doc,{compact:true});assert.equal(measured.columns[0].ancestorInsets,14);assert.equal(measured.scrollbarAllowance,15);assert.equal(measured.outerMax,783);
  ancestor.clientWidth=796;assert.equal(L.inspect(doc,{compact:true,scrollbarAllowance:measured.scrollbarAllowance}).outerMax,783);
 });
+
+
+test('split detector requires explicit visible native trailing panel, never text or generic popup',()=>{
+ const shell={getBoundingClientRect:()=>({width:824,height:900})};let active=false,hidden=false;
+ const doc={querySelector:s=>active&&s==='[data-app-shell-trailing-sidebar-visible="true"]'?shell:null,defaultView:{getComputedStyle:()=>({display:hidden?'none':'flex',visibility:'visible'})}};
+ assert.equal(L.splitPanelOpen(doc),false);active=true;assert.equal(L.splitPanelOpen(doc),true);hidden=true;assert.equal(L.splitPanelOpen(doc),false);
+ hidden=false;shell.getBoundingClientRect=()=>({width:0,height:900});assert.equal(L.splitPanelOpen(doc),false);assert.equal(L.splitPanelOpen(null),false);
+});
