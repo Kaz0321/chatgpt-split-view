@@ -105,10 +105,14 @@
   }
   function splitPanelOpen(doc) {
     // Native app-shell signal, not words in messages, menus or tooltips.
-    const shell=doc?.querySelector?.('[data-app-shell-trailing-sidebar-visible="true"]');
-    if(!shell)return false;
-    const r=shell.getBoundingClientRect(),style=doc.defaultView?.getComputedStyle(shell);
-    return r.width>0&&r.height>0&&style?.display!=='none'&&style?.visibility!=='hidden';
+    const selectors=['[data-app-shell-trailing-sidebar-visible="true"]',
+      '[data-app-shell-tab-panel-controller="right"][role="tabpanel"]'];
+    return selectors.some(selector=>{
+      const panel=doc?.querySelector?.(selector);
+      if(!panel||panel.getAttribute?.('aria-hidden')==='true')return false;
+      const r=panel.getBoundingClientRect(),style=doc.defaultView?.getComputedStyle(panel);
+      return r.width>0&&r.height>0&&style?.display!=='none'&&style?.visibility!=='hidden';
+    });
   }
   const api={splitPanelOpen,COLUMN_ATTR,STYLE_ID,GUTTER,pixels,columnGeometry,requiredOuterWidth,findColumns,inspect,apply};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CGWWLayout=api;

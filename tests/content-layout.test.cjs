@@ -54,3 +54,10 @@ test('split detector requires explicit visible native trailing panel, never text
  assert.equal(L.splitPanelOpen(doc),false);active=true;assert.equal(L.splitPanelOpen(doc),true);hidden=true;assert.equal(L.splitPanelOpen(doc),false);
  hidden=false;shell.getBoundingClientRect=()=>({width:0,height:900});assert.equal(L.splitPanelOpen(doc),false);assert.equal(L.splitPanelOpen(null),false);
 });
+
+test('document review right tabpanel expands even when trailing-sidebar flag is false',()=>{
+ let open=true,hidden=false;const panel={getBoundingClientRect:()=>({width:open?484:0,height:930}),getAttribute:k=>k==='aria-hidden'&&hidden?'true':null};
+ const doc={querySelector:s=>s==='[data-app-shell-tab-panel-controller="right"][role="tabpanel"]'?panel:null,defaultView:{getComputedStyle:()=>({display:'flex',visibility:'visible'})}};
+ assert.equal(L.splitPanelOpen(doc),true);open=false;assert.equal(L.splitPanelOpen(doc),false);open=true;hidden=true;assert.equal(L.splitPanelOpen(doc),false);
+ doc.querySelector=()=>null;assert.equal(L.splitPanelOpen(doc),false,'normal content and left tabs are not review panels');
+});

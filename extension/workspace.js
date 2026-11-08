@@ -1135,7 +1135,7 @@
         // Hydrated/replaced navigation is usually below <body>, not a direct
         // <html> child. This remains active even when parent pinning is off.
         observer.observe(doc.documentElement, { childList: true, subtree: true,
-          attributes: true, attributeFilter: ['class', 'style', 'hidden', 'data-app-shell-trailing-sidebar-visible'] });
+          attributes: true, attributeFilter: ['class', 'style', 'hidden', 'data-app-shell-trailing-sidebar-visible', 'data-app-shell-tab-panel-controller', 'aria-hidden'] });
         frame._cgwwFrameObserver = observer;
         // A new stylesheet may finish loading after the DOM mutation callback.
         // Recheck once layout is ready, independently of parent-sidebar pinning.
