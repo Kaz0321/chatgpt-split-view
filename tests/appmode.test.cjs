@@ -21,10 +21,57 @@ function harness(extra={}) {
 }
 function control(h,tag='a',attrs={}){const e=new h.Element(tag);e.href='https://chatgpt.com/?noauth_recent_chat_failed=1';e.setAttribute('aria-label','新しいチャット');for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;}
 function event(target,extra={}){return {target,button:0,preventDefault(){this.defaultPrevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};}
-test('new-chat URL is root only, strips incidental noauth query but preserves unsupported mode links natively',()=>{
+test('new-chat root URL strips incidental noauth query but preserves unsupported mode links natively',()=>{
  assert.equal(Core.newChatUrl('/'),'https://chatgpt.com/');assert.equal(Core.newChatUrl('/?noauth_recent_chat_failed=1'),'https://chatgpt.com/');
  for(const s of ['https://evil.example/','https://user:pass@chatgpt.com/','/?temporary-chat=true','/?model=fixture','#x','/images','/g/g-fixture','/c/fixture123'])assert.equal(Core.newChatUrl(s),null,s);
  assert.equal(Core.chatUrl('/'),null);
+});
+const projectPath='/g/g-p-0123456789abcdef0123456789abcdef-fixture/project';
+test('project drafts accept only same-origin explicit landing routes and derive saved conversation context',()=>{
+ assert.equal(Core.newChatUrl(projectPath),Core.ORIGIN+projectPath);
+ assert.equal(Core.newChatUrl(projectPath+'/'),Core.ORIGIN+projectPath);
+ assert.equal(Core.projectNewChatUrl(projectPath.replace('/project','/c/fixture123')),Core.ORIGIN+projectPath);
+ for(const s of [projectPath+'?temporary-chat=true',projectPath+'#x','https://evil.example'+projectPath,'https://user:pass@chatgpt.com'+projectPath,'/g/g-fixture/project','/g/g-p-fixture','/project/fixture000',projectPath+'/extra',projectPath.replace('/project','/c/fixture123')])assert.equal(Core.newChatUrl(s),null,s);
+ assert.equal(Core.paneUrl(projectPath),null);assert.equal(Core.conversationKey(projectPath),null);
+});
+test('project row new-chat buttons resolve their own project rather than the current conversation',()=>{
+ const h=harness();h.a.enabled(true);h.ctx.location={pathname:'/g/g-p-other/c/fixture123'};
+ const row=new h.Element();row.setAttribute('data-app-action-sidebar-project-row','');row.setAttribute('data-app-action-sidebar-project-id','g-p-0123456789abcdef0123456789abcdef');
+ const b=control(h,'button',{'aria-label':'Fixture で新しいチャット'});b.closest=s=>s==='[data-app-action-sidebar-project-row]'?row:s.includes('[role="menu"]')?null:b;
+ for(let i=0;i<2;i++){const e=event(b);assert(h.a.handleNewChatClick(e));assert(e.defaultPrevented);}
+ const panes=h.a.state().panes;assert.equal(panes.length,2);assert.notEqual(panes[0].id,panes[1].id);assert(panes.every(p=>p.newChat&&p.url===Core.ORIGIN+'/g/g-p-0123456789abcdef0123456789abcdef/project'));
+ for(const id of ['', 'g-fixture', 'g-p-short', 'g-p-0123456789abcdef0123456789abcdef/../../', 'g-p-0123456789abcdef0123456789abcdef?mode=1']){
+  row.setAttribute('data-app-action-sidebar-project-id',id);const e=event(b);assert.equal(h.a.handleNewChatClick(e),false);assert.equal(e.defaultPrevented,undefined);
+ }
+});
+test('project draft cancellations and invalid routes preserve existing panes without native navigation',()=>{
+ const h=harness({confirm:()=>false});h.a.init(Array.from({length:8},(_,i)=>({id:String(i),visible:true})));h.a.enabled(true);
+ const link=control(h);link.href=Core.ORIGIN+projectPath;const e=event(link);assert(h.a.handleNewChatClick(e));assert(e.defaultPrevented);assert.equal(h.a.state().panes.length,8);
+ assert.equal(h.a.addNewChat('https://evil.example'+projectPath),false);assert.equal(h.a.state().panes.length,8);
+});
+test('project links create drafts while ambiguous project-page buttons stay native and home stays global',()=>{
+ const h=harness();h.a.enabled(true);h.ctx.location={pathname:projectPath.replace('/project','/c/fixture123')};
+ const link=control(h);link.href=Core.ORIGIN+projectPath;assert(h.a.handleNewChatClick(event(link)));
+ assert.equal(h.a.handleNewChatClick(event(control(h,'button'))),false);
+ const global=control(h,'button',{'data-initial-home-action':'new-chat'});assert(h.a.handleNewChatClick(event(global)));
+ assert.deepEqual(Array.from(h.a.state().panes,p=>p.url),[Core.ORIGIN+projectPath,Core.ORIGIN+'/']);
+ h.ctx.location.search='?temporary-chat=true';assert.equal(h.a.handleNewChatClick(event(control(h,'button'))),false);
+});
+test('project drafts persist separately and promote to saved conversations without reloading documents',()=>{
+ const h=harness();h.a.enabled(true);h.a.addNewChat(projectPath);h.a.addNewChat(projectPath);const panes=h.a.state().panes;
+ const frame=h.a.entries().get(panes[0].id).iframe;frame.draft='unsent project input';
+ h.a.safeSave();const saved=h.saves.at(-1);const restored=Core.restoreWorkspacePanes(saved.panes,()=>Math.random().toString(36).slice(2));assert.equal(restored.length,2);assert(restored.every(p=>p.newChat&&p.url===Core.ORIGIN+projectPath));assert.notEqual(restored[0].id,restored[1].id);
+ const url=Core.ORIGIN+projectPath.replace('/project','/c/fixture123');frame._cgwwPane=panes[0];frame.src=panes[0].url;frame.contentWindow={location:{href:url}};h.a.syncNewChatLocation(frame);
+ assert.equal(panes[0].url,url);assert.equal(panes[0].newChat,undefined);assert.equal(frame.src,Core.ORIGIN+projectPath);assert.equal(frame.draft,'unsent project input');assert.equal(h.a.entries().get(panes[0].id).iframe,frame);assert(panes[1].newChat);
+ assert.equal(Core.normalizePanes([{url:Core.ORIGIN+projectPath,newChat:true}]).length,0);
+});
+test('project links in iframe documents preserve unknown targets and modifiers',()=>{
+ const h=harness();h.a.enabled(true);const b=control(h,'a');b.href=Core.ORIGIN+projectPath;b.ownerDocument={defaultView:{Element:h.Element,location:{pathname:projectPath}}};
+ assert(h.a.handleNewChatClick(event(b)));assert.equal(h.a.state().panes[0].url,Core.ORIGIN+projectPath);
+ for(const extra of [{ctrlKey:true},{metaKey:true},{altKey:true},{shiftKey:true},{button:1},{defaultPrevented:true}])assert.equal(h.a.handleNewChatClick(event(b,extra)),false);
+ b.href=Core.ORIGIN+'/g/g-fixture';b.ownerDocument.defaultView.location.pathname='/g/g-fixture';assert.equal(h.a.handleNewChatClick(event(b)),false);
+ const missing=control(h,'button',{'aria-label':'Unknown で新しいチャット'});assert.equal(h.a.handleNewChatClick(event(missing)),false);
+ const menu=control(h,'button');menu.closest=s=>s.includes('[role="menu"]')?{}:menu;assert.equal(h.a.handleNewChatClick(event(menu)),false);
 });
 test('multiple new drafts survive session normalization without URL deduplication',()=>{
  const result=Core.normalizeSessionPanes(Array.from({length:10},()=>({url:'https://chatgpt.com/',newChat:true,width:320})));assert.equal(result.length,10);assert(result.every(p=>p.newChat&&p.url===Core.ORIGIN+'/'));assert.notEqual(result[0],result[1]);

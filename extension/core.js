@@ -85,13 +85,23 @@
     return (path.startsWith('/local/')?'local:':'chat:')+id;
   }
 
+  // Derive only observed project routes, never generic GPTs or mode-bearing URLs.
+  function projectNewChatUrl(input) {
+    if(typeof input!=='string'||input.length>2048)return null;
+    let url;try{url=new URL(input,ORIGIN);}catch{return null;}
+    if(url.origin!==ORIGIN||url.username||url.password||url.search||url.hash)return null;
+    const match=url.pathname.match(/^(\/g\/g-p-[A-Za-z0-9_-]+)\/(?:project|c\/[\w-]{6,})\/?$/);
+    return match?ORIGIN+match[1]+'/project':null;
+  }
+
   // A new draft is a distinct pane, not a conversation URL for history deduplication.
   function newChatUrl(input) {
     if (typeof input !== 'string' || input.length > 2048) return null;
     let url;
     try { url = new URL(input, ORIGIN); } catch { return null; }
-    if (url.origin !== ORIGIN || url.username || url.password || url.pathname !== '/' || url.hash) return null;
-    // Keep mode/project/GPT links native rather than silently changing their meaning.
+    if (url.origin !== ORIGIN || url.username || url.password || url.hash) return null;
+    if(url.pathname!=='/')return /\/project\/?$/.test(url.pathname)?projectNewChatUrl(input):null;
+    // Keep mode/GPT links native rather than silently changing their meaning.
     for (const key of url.searchParams.keys()) if (key !== 'noauth_recent_chat_failed') return null;
     return ORIGIN + '/';
   }
@@ -226,7 +236,7 @@
 
   function isBranchLabel(label){return /^(?:Branch in new chat|新しいチャットに分岐|新しいチャットで分岐|チャットを分岐)$/i.test(label);}
 
-  const api = { isProvisionalChat, isBranchLabel, createTitleTracker, applyNativeTitle, gptUrl, paneUrl, paneKey, conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
+  const api = { projectNewChatUrl, isProvisionalChat, isBranchLabel, createTitleTracker, applyNativeTitle, gptUrl, paneUrl, paneKey, conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CGWWCore = api;
 })(globalThis);

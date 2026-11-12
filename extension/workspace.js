@@ -940,11 +940,12 @@
     applyColumnWidths(); syncOverlay(); safeSave();
   }
 
-  function addNewChat() {
+  function addNewChat(rawUrl=Core.ORIGIN+'/') {
+    const url=Core.newChatUrl(rawUrl);if(!url)return false;
     if(state.panes.length>=200){setStatus('動作保護のため200列が上限です。',true);return false;}
     if(state.panes.filter(p=>p.visible).length>=8&&!confirm('9列以上になります。新しいチャット列を追加しますか？'))return false;
-    const p={id:newId(),url:Core.ORIGIN+'/',newChat:true,title:'新しいチャット',titleMode:'native',width:settings.paneWidth,autoWidth:settings.nativePaneWidth,visible:true};
-    // Never deduplicate root URLs: each blank chat owns an independent document.
+    const p={id:newId(),url,newChat:true,title:'新しいチャット',titleMode:'native',width:settings.paneWidth,autoWidth:settings.nativePaneWidth,visible:true};
+    // Never deduplicate draft URLs: each blank chat owns an independent document.
     state.panes.push(p);state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();
     scroller.scrollLeft=scroller.scrollWidth;setStatus('新しいチャットを右端に追加しました。');return true;
   }
@@ -963,19 +964,32 @@
     if(!control||control.disabled||control.getAttribute?.('aria-disabled')==='true'||control.hasAttribute?.('download'))return null;
     const label=(control.getAttribute?.('aria-label')||control.getAttribute?.('title')||control.textContent||'').trim();
     const known=control.getAttribute?.('data-octane-navigation-item')==='new_chat'||['create-new-chat-button','new-chat-button'].includes(control.getAttribute?.('data-testid'));
-    if(!known&&!/^(?:New chat|新しいチャット|新規チャット)$/i.test(label))return null;
-    if(control.tagName==='A'&&!Core.newChatUrl(control.href))return null;
-    // A no-href project/GPT command has context we cannot reconstruct safely.
-    const path=target.ownerDocument?.defaultView?.location?.pathname||location.pathname;
-    if(control.tagName!=='A'&&/^\/(?:g|project)\//.test(path))return null;
+    if(!known&&!/^(?:New chat|新しいチャット|新規チャット|.+ で新しいチャット|New chat in .+)$/i.test(label))return null;
+    if(!newChatDestination(control))return null;
     return control;
+  }
+
+  function newChatDestination(control) {
+    if(control.tagName==='A')return Core.newChatUrl(control.href);
+    // The home command stays global even inside a project conversation.
+    if(control.getAttribute?.('data-initial-home-action')==='new-chat')return Core.ORIGIN+'/';
+    const label=(control.getAttribute?.('aria-label')||control.getAttribute?.('title')||control.textContent||'').trim();
+    if(/^(?:.+ で新しいチャット|New chat in .+)$/i.test(label)){
+      const row=control.closest('[data-app-action-sidebar-project-row]');
+      const id=row?.getAttribute?.('data-app-action-sidebar-project-id');
+      return /^g-p-[0-9a-f]{32}$/i.test(id||'')?Core.newChatUrl(Core.ORIGIN+'/g/'+id+'/project'):null;
+    }
+    const current=control.ownerDocument?.defaultView?.location||location;
+    // Location alone cannot distinguish project commands from the global sidebar.
+    if(/^\/(?:g|project)\//.test(current.pathname||'')||current.search||current.hash)return null;
+    return Core.ORIGIN+'/';
   }
 
   function handleNewChatClick(event) {
     if(isNativeActionMenuEvent(event))return false;
     if(!state.enabled||!settings.interceptSidebar||event.button!==0||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
-    if(!newChatControl(event))return false;
-    event.preventDefault();event.stopImmediatePropagation();if(event.detail>1)return true;addNewChat();return true;
+    const control=newChatControl(event);if(!control)return false;
+    event.preventDefault();event.stopImmediatePropagation();if(event.detail>1)return true;addNewChat(newChatDestination(control));return true;
   }
 
   function emptyPane() {
