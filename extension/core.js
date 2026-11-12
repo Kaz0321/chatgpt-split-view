@@ -44,11 +44,13 @@
     const pathname = url.pathname.replace(/\/$/, '');
     const supported = [
       /^\/c\/[\w-]{6,}$/,
+      /^\/c\/local-chatgpt%3A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       /^\/local\/[\w-]{6,}$/,
       /^\/g\/g-[\w-]{3,}\/c\/[\w-]{6,}$/,
       /^\/project\/[\w-]{6,}\/c\/[\w-]{6,}$/
     ].some(pattern => pattern.test(pathname));
     if (!supported) return null;
+    if(/^\/c\/local-chatgpt%3a/i.test(pathname))return ORIGIN+'/c/local-chatgpt%3A'+pathname.slice('/c/local-chatgpt%3A'.length).toLowerCase();
     // Preserve only the documented-looking local host selector when present;
     // strip all other query/fragment fields to avoid leaking incidental data.
     if (pathname.startsWith('/local/') && url.searchParams.get('hostId') === 'local')
@@ -57,6 +59,8 @@
   }
 
   // GPT landing pages are resources, not conversations. Keep their namespace separate.
+  function isProvisionalChat(input){const url=chatUrl(input);return !!url&&/^\/c\/local-chatgpt%3a/i.test(new URL(url).pathname);}
+
   function gptUrl(input) {
     if(typeof input!=='string'||input.length>2048)return null;
     let url;try{url=new URL(input,ORIGIN);}catch{return null;}
@@ -125,7 +129,7 @@
       const fresh = p.newChat === true && newChatUrl(p.url);
       const url = p.url == null ? null : (fresh || paneUrl(p.url));
       if (p.url != null && !url) continue;
-      result.push({ url, ...(fresh ? {newChat:true} : {}), title: normalizeTitle(p.title, fresh ? '新しいチャット' : (url ? 'ChatGPT チャット' : '未設定の列')),
+      result.push({ url, ...(fresh ? {newChat:true} : {}), ...(p.titleMode==='local'||p.titleMode==='native'?{titleMode:p.titleMode}:{}), title: normalizeTitle(p.title, fresh ? '新しいチャット' : (url ? 'ChatGPT チャット' : '未設定の列')),
         width: boundedNumber(p.width, DEFAULTS.paneWidth, 320, 1400), ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), visible: p.visible !== false });
     }
     return result;
@@ -149,7 +153,8 @@
       const pane=normalizeSessionPanes([item])[0];if(!pane)continue;
       const candidate=typeof item.id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(item.id)?item.id:null;
       const id=candidate&&!ids.has(candidate)?candidate:newId();ids.add(id);
-      const key=paneKey(pane.url),existing=key&&conversations.get(key);
+      const branch=typeof item.branchSource==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(item.branchSource)&&conversationKey(item.branchOrigin)?{branchSource:item.branchSource,branchOrigin:chatUrl(item.branchOrigin)}:{};
+      const key=paneKey(pane.url),existing=!branch.branchSource&&key&&conversations.get(key);
       const backups=Array.isArray(item.draftBackups)?item.draftBackups.filter(x=>typeof x==='string'&&x):[];
       if(existing){
         if(backups.length)existing.draftBackups=[...new Set([...(existing.draftBackups||[]),...backups])];
@@ -161,8 +166,8 @@
         }
         continue;
       }
-      const restored={...pane,id,...(item.folded===true?{folded:true}:{}),...(backups.length?{draftBackups:[...new Set(backups)]}:{}),...(typeof item.draft==='string'?{draft:item.draft}:{})};
-      result.push(restored);if(key)conversations.set(key,restored);
+      const restored={...pane,...branch,id,...(item.folded===true?{folded:true}:{}),...(backups.length?{draftBackups:[...new Set(backups)]}:{}),...(typeof item.draft==='string'?{draft:item.draft}:{})};
+      result.push(restored);if(key&&!branch.branchSource)conversations.set(key,restored);
     }
     return result;
   }
@@ -193,7 +198,35 @@
     result.splice(index+(after?1:0),0,source);return result;
   }
 
-  const api = { gptUrl, paneUrl, paneKey, conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
+  // A newly loaded document must not replace a name already observed elsewhere.
+  function createTitleTracker() {
+    const sources=new WeakMap(), names=new Map();
+    return {
+      get:key=>names.get(key),
+      observe(source,values){
+        const previous=sources.get(source);sources.set(source,new Map(values));
+        for(const [key,title] of values){
+          if(!key||!title)continue;
+          const current=names.get(key);
+          if(current===title)continue;
+          if(current!==undefined&&(!previous?.has(key)||previous.get(key)===title))continue;
+          names.set(key,title);
+        }
+      }
+    };
+  }
+  function applyNativeTitle(pane,title,editing=false) {
+    if(!conversationKey(pane.url)||!title||editing||pane.titleMode==='local')return false;
+    if(!pane.titleMode&&pane.title!==title&&!['新しいチャット','ChatGPT チャット','未設定の列'].includes(pane.title)){
+      pane.titleMode='local';return true; // Legacy names may be user aliases.
+    }
+    const changed=pane.title!==title||pane.titleMode!=='native';
+    pane.title=title;pane.titleMode='native';return changed;
+  }
+
+  function isBranchLabel(label){return /^(?:Branch in new chat|新しいチャットに分岐|新しいチャットで分岐|チャットを分岐)$/i.test(label);}
+
+  const api = { isProvisionalChat, isBranchLabel, createTitleTracker, applyNativeTitle, gptUrl, paneUrl, paneKey, conversationKey, restoredActiveIndex, restoreWorkspacePanes, PANE_DRAG_TYPE, isPaneReorderDrag, movePane, ORIGIN, DEFAULTS, SCHEMA_VERSION, boundedNumber, normalizeSettings, calculateEqualWidth, chatUrl, newChatUrl, normalizeTitle, normalizePanes, normalizeSessionPanes, importConfig };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CGWWCore = api;
 })(globalThis);

@@ -9,7 +9,7 @@
     if(!raw||!Array.isArray(raw.panes))throw Error('Invalid workspace');
     const panes=Core.restoreWorkspacePanes(raw.panes,newId);
     return {schemaVersion:2,workspaceId:id,savedAt:Date.now(),settings:Core.normalizeSettings(raw.settings),enabled:raw.enabled===true,
-      panes,closedPanes:Core.normalizeSessionPanes(raw.closedPanes).filter(p=>p.url).map(({url,title,width,newChat,autoWidth})=>({url,title,width,...(newChat?{newChat:true}:{}),...(typeof autoWidth==='boolean'?{autoWidth}:{})})),
+      panes,closedPanes:Core.normalizeSessionPanes(raw.closedPanes).filter(p=>p.url).map(({url,title,width,newChat,autoWidth,titleMode})=>({url,title,width,...(titleMode?{titleMode}:{}),...(newChat?{newChat:true}:{}),...(typeof autoWidth==='boolean'?{autoWidth}:{})})),
       activeIndex:Core.restoredActiveIndex(raw,panes),activeUrl:Core.chatUrl(raw.activeUrl),
       overlayPosition:Number.isFinite(raw.overlayPosition?.x)&&Number.isFinite(raw.overlayPosition?.y)?{x:raw.overlayPosition.x,y:raw.overlayPosition.y}:null};
   }

@@ -386,9 +386,10 @@
         if(entry.wideButton){const wide=isSplitWide(pane);entry.wideButton.setAttribute('aria-pressed',String(wide));entry.wideButton.setAttribute('aria-label',wide?'この列の幅を戻す':'この列を広げる');entry.wideButton.title=wide?'一時拡張を解除':'レビュー・分割画面用にこの列だけ広げる';}
         entry.root.classList.toggle('folded',pane.folded===true);
         if(entry.restoreButton)entry.restoreButton.hidden=!pane.folded;
+        if(entry.foldedGrip)entry.foldedGrip.hidden=!pane.folded;
         if(entry.foldedCloseButton){entry.foldedCloseButton.hidden=!pane.folded;entry.foldedCloseButton.setAttribute('aria-label',`${pane.title} の縮小タブを閉じる`);}
         if(entry.foldButton)entry.foldButton.setAttribute('aria-expanded',String(!pane.folded));
-        if(entry.spine){entry.spine.setAttribute('aria-label',`${pane.title} を${pane.folded?'展開':'折りたたむ'}`);entry.spine.setAttribute('aria-expanded',String(!pane.folded));entry.spine.firstChild.textContent=pane.title;}
+        if(entry.spine){entry.spine.setAttribute('aria-label',`分割タブ: ${pane.title} を${pane.folded?'展開':'折りたたむ'}`);entry.spine.setAttribute('aria-expanded',String(!pane.folded));entry.spine.firstChild.textContent=pane.title;}
       }
     }
     if (equalButton) { equalButton.textContent = settings.equalizeColumns ? '等分: ON' : '等分: OFF'; equalButton.setAttribute('aria-pressed',String(settings.equalizeColumns)); }
@@ -408,11 +409,11 @@
       if(!workspaceId)workspaceId=newId();
       const snapshot={savedAt:Date.now(),
         schemaVersion:2,workspaceId,settings,
-        closedPanes: closedPanes.map(({url,title,width,newChat,autoWidth})=>({url,title,width,...(typeof autoWidth==='boolean'?{autoWidth}:{}),...(newChat?{newChat:true}:{})})),
+        closedPanes: closedPanes.map(({url,title,width,newChat,autoWidth,titleMode})=>({url,title,width,titleMode,...(typeof autoWidth==='boolean'?{autoWidth}:{}),...(newChat?{newChat:true}:{})})),
         enabled: state.enabled,
         activeUrl: state.panes.find(p => p.id === state.activeId)?.url || null,
         activeIndex:state.panes.findIndex(p=>p.id===state.activeId), overlayPosition,
-        panes: state.panes.map(p => ({ id:p.id, ...(p.folded?{folded:true}:{}), ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), ...(p.draftBackups?.length?{draftBackups:[...p.draftBackups]}:{}), url: p.url, title: p.title, width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
+        panes: state.panes.map(p => ({ id:p.id, ...(p.folded?{folded:true}:{}), ...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}), ...(typeof p.draft==='string'?{draft:p.draft}:{}), ...(p.draftBackups?.length?{draftBackups:[...p.draftBackups]}:{}), url: p.url, title: p.title, titleMode:p.titleMode, ...(p.branchSource?{branchSource:p.branchSource,branchOrigin:p.branchOrigin}:{}), width: p.width, visible: p.visible, ...(p.newChat ? {newChat:true} : {}) }))
       };
       try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(snapshot));}
       catch{setStatus('このタブ内の保存に失敗しました。再起動用の保存は継続します。',true);}
@@ -463,12 +464,13 @@
     const incoming=Core.restoreWorkspacePanes(snapshot.panes,newId),used=new Set(state.panes.map(p=>p.id)),plans=[];
     for(const saved of incoming){
       const key=Core.paneKey(saved.url);
-      const existing=key?findConversation(saved.url):state.panes.find(p=>p.id===saved.id&&(saved.newChat||(!Core.paneKey(p.url)&&p.url===saved.url)));
+      const existing=saved.branchSource?state.panes.find(p=>p.branchSource&&Core.conversationKey(p.branchOrigin)===Core.conversationKey(saved.branchOrigin)):key?findConversation(saved.url):state.panes.find(p=>p.id===saved.id&&(saved.newChat||(!Core.paneKey(p.url)&&p.url===saved.url)));
       if(existing){plans.push({saved,pane:existing,existing:true});continue;}
       const pane={...saved};if(used.has(pane.id))pane.id=newId();used.add(pane.id);plans.push({saved,pane,existing:false});
     }
     if(state.panes.length+plans.filter(x=>!x.existing).length>200)throw Error('200列の上限です。現在のタブは変更していません。');
     for(const {saved,pane,existing} of plans){
+      if(!existing&&saved.branchSource)pane.branchSource=plans.find(x=>x.saved.id===saved.branchSource)?.pane.id||saved.branchSource;
       if(existing){
         // Never replace a live document or its current input with an older snapshot.
         const backups=[...(pane.draftBackups||[]),...(saved.draftBackups||[]),saved.draft].filter(x=>typeof x==='string'&&x&&x!==pane.draft);
@@ -579,9 +581,10 @@
       .overlay-menu .tab-row{grid-template-rows:30px;min-height:38px;padding:4px 6px}.overlay-menu .tab-row .parked-title{line-height:30px}.overlay-menu .tab-row .tab-toggle{grid-row:1;min-height:28px;height:28px}.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}.group-save-form{margin-top:8px}.group-save-form[hidden]{display:none!important}
       .overlay.docked{width:40px;max-width:40px;height:100dvh;min-height:0;flex-direction:column;align-items:center;gap:4px;padding:4px 2px;overflow-x:hidden;overflow-y:auto;border:0;border-right:1px solid #e5e7eb;z-index:2147483647}
       .overlay.docked>button{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;font-size:0;flex:none}
-      .overlay.docked>button::before{font:18px/1 system-ui}.overlay .overlay-launcher::before{content:'☰'}.overlay .overlay-add::before{content:'+'}.overlay .overlay-sidebar::before{content:'▥'}.overlay .overlay-view::before{content:'↗'}.overlay .overlay-save::before{content:'!'}.overlay .overlay-undo::before{content:'↶'}
+      .overlay.docked>button::before{font:18px/1 system-ui}.overlay .overlay-launcher::before{content:'☰'}.overlay .overlay-add::before{content:'+'}.overlay .overlay-sidebar::before{content:'▥'}.overlay .overlay-view::before{content:'↗'}.overlay .overlay-save::before{content:'!'}.overlay .overlay-undo::before{content:'↶'}.overlay .overlay-fold-all::before{content:'⊟'}
       .overlay.docked button[aria-pressed=true]{background:#e7f0fc;border-color:#aebdcd}.overlay-menu.docked{z-index:2147483646}
 
+      .overlay.docked .overlay-view{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}.overlay.docked .overlay-view::after{content:'メイン';font:9px/10px system-ui;color:inherit}.menu-main{width:100%;margin:10px 0 0;text-align:left;white-space:normal;overflow-wrap:anywhere}
       .overlay-options{margin-top:auto!important}.overlay.docked :is(.overlay-launcher,.overlay-sidebar,.overlay-add,.overlay-view,.overlay-options)::before{content:"";display:inline-block;width:20px;height:20px;background:currentColor;mask-position:center;mask-repeat:no-repeat;mask-size:contain}
       .overlay .overlay-launcher::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%2215%22%20height%3D%2214%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M3%2016V4a1%201%200%200%201%201-1h12%22%2F%3E%3C%2Fsvg%3E")}
       .overlay .overlay-sidebar::before{content:"";mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%2218%22%20height%3D%2216%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M9%204v16m7-12-4%204%204%204%22%2F%3E%3C%2Fsvg%3E")}
@@ -593,9 +596,11 @@
       .overlay-sidebar[aria-pressed=false]::before{transform:scaleX(-1)}.pane-link,.pane-more{font-size:0!important}.pane-link::before,.pane-more::before{display:inline-block;width:16px;height:16px;background:currentColor;mask-size:contain;mask-repeat:no-repeat}.overlay-options{flex-shrink:0}
       .board{position:fixed;inset:0 0 0 auto;z-index:2147483645;display:flex;flex-direction:column;background:#e9eef4;color:#1c3048;font:12px system-ui;pointer-events:auto}
       .board[hidden],.launcher[hidden],.dock[hidden],.pane[hidden],.hintbar[hidden]{display:none!important}
+      .board::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:#879bb3;z-index:4;pointer-events:none}
       .scroller{flex:1;min-height:0;display:flex;gap:4px;padding:4px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
-      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:32px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:64px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .pane-folded-grip{flex:0 0 32px;width:100%;height:32px;min-height:32px;padding:0;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:grab;font:16px system-ui}.pane-folded-grip:active{cursor:grabbing}.pane-folded-grip:hover{background:#d5e3f0}.pane-folded-grip:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-folded-close{position:absolute;bottom:0;left:0;z-index:3;width:100%;height:32px;padding:0;border:0;border-top:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#526579;cursor:pointer}.pane-folded-close:hover{background:#fbe4e4;color:#a52222}.pane-folded-close:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
       .pane-control{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:3px;height:24px;min-width:24px;padding:0 5px;border:1px solid transparent;border-radius:4px;background:transparent;color:#526579;font-size:12px;line-height:1;vertical-align:middle}
@@ -669,9 +674,9 @@
 
   function syncOverlay() {
     if(!viewToggle)return;
-    viewToggle.textContent=state.enabled?'元画面':(state.panes.length?'分割へ':'分割を開始');
-    viewToggle.title=state.enabled?'元のChatGPT画面を表示（列と下書きは保持）':'分割表示へ戻る';
-    viewToggle.setAttribute('aria-label',state.enabled?'元の画面を表示':(state.panes.length?'分割表示に戻る':'分割表示を開始'));
+    viewToggle.textContent=state.enabled?'メイン（元画面）':(state.panes.length?'メイン · 分割へ':'メイン · 分割を開始');
+    viewToggle.title=state.enabled?'メインチャット（元画面）を表示。分割タブと入力は保持':'現在はメインチャット（元画面）です。分割表示へ切り替え';
+    viewToggle.setAttribute('aria-label',state.enabled?'メインチャット（元画面）を表示':(state.panes.length?'メインチャット表示中。分割表示に戻る':'メインチャット表示中。分割表示を開始'));
     if(!menuControls)return;
     menuControls.add.disabled=false;menuControls.sidebarVisible.disabled=!state.enabled;menuControls.url.disabled=!state.enabled;menuControls.width.disabled=!state.enabled||settings.equalizeColumns;menuControls.apply.disabled=menuControls.width.disabled;
     menuControls.width.value=String(settings.nativePaneWidth?(contentWidthDetected?originalMaxWidth:Core.DEFAULTS.paneWidth):Math.min(settings.paneWidth,originalMaxWidth));menuControls.width.max=String(originalMaxWidth);menuControls.equal.checked=settings.equalizeColumns;menuControls.equal.disabled=!state.enabled;
@@ -808,9 +813,9 @@
     }
     entry?.root.remove();paneNodes.delete(p.id);splitWidths.delete(p);
     state.panes=state.panes.filter(x=>x.id!==p.id);
-    if(p.url)closedPanes.unshift({id:newId(),url:p.url,title:p.title,width:p.width,...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}),...(p.newChat?{newChat:true}:{})});
+    if(p.url&&!p.branchSource)closedPanes.unshift({id:newId(),url:p.url,title:p.title,titleMode:p.titleMode,width:p.width,...(typeof p.autoWidth==='boolean'?{autoWidth:p.autoWidth}:{}),...(p.newChat?{newChat:true}:{})});
     closedPanes=closedPanes.slice(0,200);
-    undo.historyId=p.url?closedPanes[0]?.id:null;lastClosed=undo;
+    undo.historyId=p.url&&!p.branchSource?closedPanes[0]?.id:null;lastClosed=undo;
     if(typeof setTimeout==='function'){clearTimeout(undoTimer);undoTimer=setTimeout(()=>{lastClosed=null;updateRecoveryUI();},30000);}
     updateRecoveryUI();
     state.activeId=state.panes.find(x=>x.visible)?.id||null;
@@ -835,10 +840,12 @@
     const grip=button('⠿','操作ボタンをドラッグで移動。矢印キーでも移動できます。',()=>{},'overlay-grip');grip.setAttribute('aria-label','操作ボタンの位置を移動');overlay.appendChild(grip);
     launcher=button('▥ メニュー','タブ管理',()=>{const open=overlayMenu.hidden;overlayMenu.hidden=!open;launcher.setAttribute('aria-expanded',String(open));if(open){syncOverlay();void showSavedWorkspaces();menuControls.close.focus();}},'overlay-launcher');launcher.setAttribute('aria-label','タブ管理');launcher.setAttribute('aria-expanded','false');launcher.setAttribute('aria-controls','cgww-overlay-menu');overlay.appendChild(launcher);
     const add=button('＋ 新しいチャット','独立した新しいチャットを右端に追加',event=>{if(event.detail>1)return;if(!state.enabled)setEnabled(true,true);addNewChat();syncOverlay();},'overlay-add');add.setAttribute('aria-label','新しいチャット');overlay.appendChild(add);
+    const foldAll=button('全部縮小','全部縮小：表示中のタブを折りたたむ（ページと入力を保持）',foldAllPanes,'overlay-fold-all');foldAll.setAttribute('aria-label','全部縮小');overlay.appendChild(foldAll);
     const sidebarVisible=button('左一覧を隠す','左一覧の表示切替',toggleSidebar,'overlay-sidebar');overlay.insertBefore(sidebarVisible,add);
     viewToggle=button('分割を開始','分割表示を開始',()=>{setEnabled(!state.enabled);viewToggle.focus();},'overlay-view');overlay.appendChild(viewToggle);undoButton.className='overlay-undo';undoButton.setAttribute('aria-label','閉じた列を元に戻す');overlay.append(saveBadge,undoButton);const optionsButton=button('オプション','オプションを開く',openOptions,'overlay-options');optionsButton.setAttribute('aria-label','オプションを開く');overlay.appendChild(optionsButton);updateRecoveryUI();shadow.appendChild(overlay);
     overlayMenu=create('section','overlay-menu');overlayMenu.id='cgww-overlay-menu';overlayMenu.hidden=true;overlayMenu.setAttribute('role','dialog');overlayMenu.setAttribute('aria-label','タブ管理');
     const heading=create('div','menu-heading');heading.appendChild(create('h3','','タブ管理'));const close=button('×','メニューを閉じる',()=>closeOverlay());close.setAttribute('aria-label','メニューを閉じる');heading.appendChild(close);overlayMenu.appendChild(heading);
+    const mainEntry=button('メイン（元画面）を表示','親ページのチャットを表示。選択中の分割タブとは別の画面',()=>{setEnabled(false);viewToggle.focus();},'menu-main');mainEntry.setAttribute('aria-label','メインチャット（元画面）を表示');overlayMenu.appendChild(mainEntry);
     const displaySettings=create('details','display-settings'),settingsSummary=create('summary','','表示設定');displaySettings.appendChild(settingsSummary);
     const tabsSection=create('section','menu-section tab-section'),groupsSection=create('section','menu-section group-section');tabsSection.setAttribute('aria-label','タブ一覧');groupsSection.setAttribute('aria-label','タブグループ');
     let rowTarget=displaySettings;const row=()=>{const e=create('div','menu-row');rowTarget.appendChild(e);return e;};
@@ -850,7 +857,7 @@
     const sidebarReset=button('リセット','左一覧幅をリセット',()=>setSidebarWidth(Core.DEFAULTS.sidebarWidth));sidebarReset.setAttribute('aria-label','左一覧幅をリセット');
     const sidebarLock=button('ロック','左一覧の幅変更をロック・解除',()=>{settings.sidebarLocked=!settings.sidebarLocked;updateGeometry();savePrefs();safeSave();syncOverlay();});sidebarLock.setAttribute('aria-label','左一覧幅のロック');
     sideRow.append(create('label','','左一覧幅 (px)'),sidebar,sidebarApply);row().append(sidebarReset,sidebarLock);
-    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');const foldAll=button('全部縮小','表示中のタブをすべて折りたたむ（ページと入力を保持）',foldAllPanes);foldAll.setAttribute('aria-label','全部縮小');tabsSection.replaceChildren(parkedHeading,foldAll,parkedList,url);overlayMenu.append(tabsSection,restoreBadge,groupsSection);groupsSection.appendChild(create('h3','','タブグループ'));rowTarget=tabsSection;
+    const parkedHeading=create('h3','','タブ一覧 (0)'),parkedList=create('div');tabsSection.replaceChildren(parkedHeading,parkedList,url);overlayMenu.append(tabsSection,restoreBadge,groupsSection);groupsSection.appendChild(create('h3','','タブグループ'));rowTarget=tabsSection;
     const historyEntry=button('閉じた履歴 (0)','このワークスペースで閉じた列を検索',()=>{historyPanel.hidden=!historyPanel.hidden;historyEntry.setAttribute('aria-expanded',String(!historyPanel.hidden));});historyEntry.setAttribute('aria-expanded','false');row().appendChild(historyEntry);
     const historyPanel=create('div'),search=create('input'),historyList=create('div');historyPanel.hidden=true;search.type='search';search.setAttribute('aria-label','閉じた履歴をタイトル・URLで検索');search.placeholder='タイトル・URLで検索';search.addEventListener('input',renderClosedHistory);historyPanel.append(create('p','','このワークスペースで閉じた列のみ。復元は再読み込みです。未送信入力は戻りません。'),search,historyList);tabsSection.appendChild(historyPanel);rowTarget=groupsSection;
     const groupSaveDetails=create('div','group-save-form');groupSaveDetails.hidden=true;groupSaveDetails.id='cgww-group-save-form';
@@ -861,7 +868,7 @@
     row().appendChild(button('保存済みタブグループを表示','名前付きグループと以前の作業の一覧を表示',showSavedWorkspaces));const savedList=create('div','saved-groups');groupsSection.appendChild(savedList);groupsSection.appendChild(groupSaveDetails);rowTarget=displaySettings;
     displaySettings.appendChild(create('p','overlay-note','その他の設定では本文余白・既定の表示設定・設定JSONの入出力を変更できます。'));
     row().appendChild(button('その他の設定','拡張のオプション画面を開く',openOptions));
-    shadow.appendChild(overlayMenu);menuControls={foldAll,groupStart,groupSaveDetails,groupCancel,displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
+    shadow.appendChild(overlayMenu);menuControls={mainEntry,foldAll,groupStart,groupSaveDetails,groupCancel,displaySettings,tabsSection,groupsSection,groupName,groupSave,groupStatus,savedList,close,add,url,width,apply,equal,sidebarVisible,sidebar,sidebarApply,sidebarReset,sidebarLock,parkedHeading,parkedList,historyEntry,historyPanel,search,historyList};
     let dragging=null;
     grip.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();closeOverlay(false);const r=overlay.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top};grip.setPointerCapture(e.pointerId);});
     grip.addEventListener('pointermove',e=>{if(!dragging)return;overlayPosition={x:dragging.left+e.clientX-dragging.x,y:dragging.top+e.clientY-dragging.y};placeOverlay();});
@@ -885,7 +892,7 @@
   }
 
   function syncPaneOrder() {
-    state.panes.forEach((pane,index)=>{const entry=paneNodes.get(pane.id);if(!entry)return;entry.root.style.order=String(index);entry.root.dataset.visualOrder=String(index);entry.index.textContent=String(index+1);entry.grip.setAttribute('aria-label',`列 ${index+1} を移動`);});
+    state.panes.forEach((pane,index)=>{const entry=paneNodes.get(pane.id);if(!entry)return;entry.root.style.order=String(index);entry.root.dataset.visualOrder=String(index);entry.root.setAttribute('aria-label',`分割タブ ${index+1}`);entry.index.textContent=String(index+1);entry.grip.setAttribute('aria-label',`列 ${index+1} を移動`);entry.foldedGrip?.setAttribute('aria-label',`列 ${index+1} を移動`);});
   }
 
   function reorderPane(sourceId,targetId,after=false) {
@@ -894,15 +901,17 @@
     state.panes=next;syncPaneOrder();safeSave();setStatus('列の順番を変更しました。会話の再読み込みはしていません。');
   }
 
-  function attachPaneDrag(root,grip,pane) {
-    grip.draggable=true;grip.title='ドラッグで列を並べ替え。Alt+←/→でも移動';
+  function attachPaneDrag(root,grips,pane) {
     const clear=()=>{draggedPaneId=null;paneNodes.forEach(e=>e.root.classList.remove('dragging','drop-before','drop-after'));};
-    grip.addEventListener('dragstart',event=>{if(!event.dataTransfer)return;draggedPaneId=pane.id;event.dataTransfer.setData(Core.PANE_DRAG_TYPE,pane.id);event.dataTransfer.effectAllowed='move';root.classList.add('dragging');});
-    grip.addEventListener('dragend',clear);
+    for(const grip of grips){
+      grip.draggable=true;grip.title='ドラッグで列を並べ替え。Alt+←/→でも移動';
+      grip.addEventListener('dragstart',event=>{if(!event.dataTransfer)return;draggedPaneId=pane.id;event.dataTransfer.setData(Core.PANE_DRAG_TYPE,pane.id);event.dataTransfer.effectAllowed='move';root.classList.add('dragging');});
+      grip.addEventListener('dragend',clear);
+      grip.addEventListener('keydown',event=>{if(!event.altKey||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const visible=state.panes.filter(p=>p.visible);const i=visible.findIndex(p=>p.id===pane.id),right=event.key==='ArrowRight',target=visible[i+(right?1:-1)];if(target)reorderPane(pane.id,target.id,right);});
+    }
     root.addEventListener('dragover',event=>{if(!draggedPaneId||!Core.isPaneReorderDrag(event.dataTransfer?.types))return;event.preventDefault();event.dataTransfer.dropEffect='move';const after=event.clientX>root.getBoundingClientRect().left+root.getBoundingClientRect().width/2;root.classList.toggle('drop-before',!after);root.classList.toggle('drop-after',after);});
     root.addEventListener('dragleave',()=>root.classList.remove('drop-before','drop-after'));
     root.addEventListener('drop',event=>{if(!draggedPaneId||!Core.isPaneReorderDrag(event.dataTransfer?.types))return;const id=event.dataTransfer.getData(Core.PANE_DRAG_TYPE);if(id!==draggedPaneId)return;event.preventDefault();event.stopPropagation();const rect=root.getBoundingClientRect();reorderPane(id,pane.id,event.clientX>rect.left+rect.width/2);clear();});
-    grip.addEventListener('keydown',event=>{if(!event.altKey||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const visible=state.panes.filter(p=>p.visible);const i=visible.findIndex(p=>p.id===pane.id),right=event.key==='ArrowRight',target=visible[i+(right?1:-1)];if(target)reorderPane(pane.id,target.id,right);});
   }
 
   function setPaneStatus(node,text,stateName='') { node.textContent='●';node.title=text;node.setAttribute('aria-label',text);node.dataset.state=stateName; }
@@ -934,7 +943,7 @@
   function addNewChat() {
     if(state.panes.length>=200){setStatus('動作保護のため200列が上限です。',true);return false;}
     if(state.panes.filter(p=>p.visible).length>=8&&!confirm('9列以上になります。新しいチャット列を追加しますか？'))return false;
-    const p={id:newId(),url:Core.ORIGIN+'/',newChat:true,title:'新しいチャット',width:settings.paneWidth,autoWidth:settings.nativePaneWidth,visible:true};
+    const p={id:newId(),url:Core.ORIGIN+'/',newChat:true,title:'新しいチャット',titleMode:'native',width:settings.paneWidth,autoWidth:settings.nativePaneWidth,visible:true};
     // Never deduplicate root URLs: each blank chat owns an independent document.
     state.panes.push(p);state.activeId=p.id;renderPane(p);markActive();applyColumnWidths();safeSave();
     scroller.scrollLeft=scroller.scrollWidth;setStatus('新しいチャットを右端に追加しました。');return true;
@@ -942,7 +951,8 @@
 
   function syncNewChatLocation(frame) {
     const p=frame._cgwwPane;
-    if(!p||(!p.newChat&&!Core.gptUrl(p.url)))return;
+    if(p?.branchSource){checkBranchLocation(p);return;}
+    if(!p||(!p.newChat&&!Core.gptUrl(p.url)&&!Core.isProvisionalChat(p.url)))return;
     try{const url=Core.paneUrl(frame.contentWindow.location.href);if(url&&url!==p.url){p.url=url;delete p.newChat;safeSave();}}catch{/* Same-origin only. */}
   }
 
@@ -989,6 +999,7 @@
     const key=Core.paneKey(url);if(!key)return null;
     // A draft may already have acquired its conversation URL before its observer ran.
     for(const p of state.panes){
+      if(p.branchSource)continue;
       const frame=paneNodes.get(p.id)?.iframe;
       try{const current=Core.paneUrl(frame?.contentWindow.location.href);if(current){p.url=current;delete p.newChat;}}catch{/* Same-origin only. */}
       if(Core.paneKey(p.url)===key)return p;
@@ -1010,14 +1021,14 @@
     const active = state.panes.find(p => p.id === state.activeId);
     if (active && !active.url && !forceNew) {
       active.url = url;
-      active.title = Core.normalizeTitle(title);
+      active.title = Core.normalizeTitle(title);active.titleMode='native';
       active.visible = true;
       renderPane(active); markActive(); applyColumnWidths(); safeSave();
       return;
     }
     if (state.panes.length >= 200) { setStatus('動作保護のため200列が上限です。', true); return; }
     if (state.panes.filter(p => p.visible).length >= 8 && !confirm('さらに列を追加しますか？会話ごとにメモリを使用します。')) return;
-    const p = { id: newId(), url, title: Core.normalizeTitle(title), width: settings.paneWidth, autoWidth:settings.nativePaneWidth, visible: true };
+    const p = { id: newId(), url, title: Core.normalizeTitle(title), titleMode:'native', width: settings.paneWidth, autoWidth:settings.nativePaneWidth, visible: true };
     state.panes.push(p);
     state.activeId = p.id;
     renderPane(p); markActive(); safeSave();
@@ -1094,6 +1105,7 @@
       frame._cgwwDocument = doc;
       frame._cgwwNavigationCleanup?.();
       const onClick = event => {
+        if(handleBranchClick(event,pane))return;
         if(isNativeActionMenuEvent(event))return;
         closeOverlay(false);
         if(handleNewChatClick(event))return;
@@ -1112,8 +1124,9 @@
         state.activeId = pane.id;
         assignToActive(url, Core.normalizeTitle(anchor.innerText || anchor.getAttribute('aria-label') || anchor.textContent), event.shiftKey);
       };
-      doc.addEventListener('click',onClick,true);
-      frame._cgwwNavigationCleanup=()=>doc.removeEventListener('click',onClick,true);
+      const onKey=event=>{if(event.key==='Escape')branchActions.delete(pane);};
+      doc.addEventListener('click',onClick,true);doc.addEventListener('keydown',onKey,true);
+      frame._cgwwNavigationCleanup=()=>{doc.removeEventListener('click',onClick,true);doc.removeEventListener('keydown',onKey,true);};
     } catch { /* Cross-origin/login pages remain unmodified */ }
   }
 
@@ -1198,12 +1211,92 @@
     return frame;
   }
 
+  const branchActions=new WeakMap();
+  function liveBranchSourceUrl(source){
+    const frame=paneNodes.get(source?.id)?.iframe;
+    if(!frame)return null;
+    try{return Core.chatUrl(frame.contentWindow.location.href);}catch{return null;}
+  }
+  function branchSourceMatches(source,p){
+    return !!source&&Core.conversationKey(liveBranchSourceUrl(source))===Core.conversationKey(p.branchOrigin);
+  }
+  function prepareBranch(source){
+    if(!state.enabled||source.branchSource||!state.panes.includes(source))return;
+    const origin=liveBranchSourceUrl(source);
+    if(!Core.conversationKey(origin)||Core.isProvisionalChat(origin)){setStatus('分岐準備には保存済み会話が必要です。仮URLは別の列で開き直せる保証がないため、保存後にお試しください。',true);return;}
+    const existing=state.panes.find(p=>p.branchSource===source.id);
+    if(existing){selectConversation(existing);return existing;}
+    if(state.panes.length>=200){setStatus('200列の上限です。',true);return;}
+    if(state.panes.filter(p=>p.visible).length>=8&&!confirm('さらに列を追加しますか？会話ごとにメモリを使用します。'))return;
+    const p={id:newId(),url:origin,branchSource:source.id,branchOrigin:origin,title:'分岐準備: '+source.title,titleMode:'local',width:source.width,autoWidth:source.autoWidth,visible:true};
+    state.panes.splice(state.panes.indexOf(source)+1,0,p);
+    renderPane(p);syncPaneOrder();selectConversation(p);safeSave();
+    setStatus('隣の準備列で、分岐したいメッセージの「…」から本体の分岐を選んでください。元列の未送信入力・添付はコピーしません。');
+    return p;
+  }
+  function handleBranchClick(event,p){
+    if(event.button!==0||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
+    const control=event.target?.closest?.('[role="menuitem"],button,a');
+    const label=(control?.textContent||'').trim();
+    const branch=isNativeActionMenuEvent(event)&&Core.isBranchLabel(label);
+    if(p.branchSource){
+      branchActions.delete(p);
+      if(branch){
+        const frame=paneNodes.get(p.id)?.iframe;
+        try{if(Core.conversationKey(frame.contentWindow.location.href)===Core.conversationKey(p.branchOrigin))branchActions.set(p,{expires:Date.now()+30000});}catch{/* Authentication boundary. */}
+      }
+      return false; // The native action is executed only in the preparation document.
+    }
+    if(!branch)return false;
+    event.preventDefault();event.stopImmediatePropagation();prepareBranch(p);return true;
+  }
+  function finishBranch(p,raw){
+    const url=Core.chatUrl(raw),key=Core.conversationKey(url),source=state.panes.find(x=>x.id===p.branchSource);
+    if(!source||!key||key===Core.conversationKey(p.branchOrigin))return false;
+    if(!branchSourceMatches(source,p)){setStatus('元の会話が変わったか確認できないため、分岐先の配置を中止しました。',true);return false;}
+    const existing=state.panes.find(x=>x!==p&&!x.branchSource&&Core.conversationKey(paneSourceUrl(x)?.url)===key);
+    if(existing){
+      reorderPane(existing.id,source.id,true);selectConversation(existing);
+      setStatus('分岐先は既存の列を隣へ移動しました。準備列は入力保護のため残しています。不要なら×で閉じてください。');return true;
+    }
+    // Adopt the existing document, never reload the resulting branch.
+    p.url=url;delete p.branchSource;delete p.branchOrigin;branchActions.delete(p);
+    p.titleMode='native';p.title='ChatGPT チャット';
+    reorderPane(p.id,source.id,true);renderPane(p);selectConversation(p);safeSave();
+    setStatus(Core.isProvisionalChat(url)?'分岐先を隣に表示しました。本体の仮URLのため、再読み込みや終了後の復元は保証できません。':'分岐先を元の列の隣に表示しました。');return true;
+  }
+  function checkBranchLocation(p){
+    const action=branchActions.get(p);if(!action)return;
+    if(Date.now()>action.expires){branchActions.delete(p);return;}
+    try{
+      const href=paneNodes.get(p.id)?.iframe?.contentWindow.location.href;
+      const key=Core.conversationKey(href);
+      if(!key){branchActions.delete(p);return;}
+      if(key!==Core.conversationKey(p.branchOrigin)){branchActions.delete(p);finishBranch(p,href);}
+    }catch{branchActions.delete(p);}
+  }
+  function importBranchUrl(p){
+    const raw=prompt('本体で作成した分岐先の会話URLを指定してください。別タブで開いた場合に使います。');
+    if(raw===null)return;
+    const url=Core.chatUrl(raw),source=state.panes.find(x=>x.id===p.branchSource);
+    if(!source||!url||Core.conversationKey(url)===Core.conversationKey(p.branchOrigin)){setStatus('元とは異なる会話URLが必要です。',true);return;}
+    // URL import adds/reuses a separate pane, preserving any preparation input too.
+    if(!branchSourceMatches(source,p)){setStatus('元の会話が変わったか確認できないため、URL取込を中止しました。',true);return;}
+    let target=findConversation(url);
+    if(Core.isProvisionalChat(url)&&(!target||Core.conversationKey(liveBranchSourceUrl(target))!==Core.conversationKey(url))){setStatus('この仮URLの既存表示が見つかりません。別の列で開き直せる保証がないため、保存済みURLになってから取り込んでください。',true);return;}
+    if(!target){addPane(url,'ChatGPT チャット',true);target=findConversation(url);}
+    if(!target)return;
+    reorderPane(target.id,source.id,true);selectConversation(target);
+    setStatus('指定した会話を元列の隣に配置しました。準備列は必要に応じて×で閉じてください。');
+  }
+
   function renderPane(p) {
     let entry = paneNodes.get(p.id);
     if (entry) {
+      if(entry.branchButton){entry.branchButton.textContent=p.branchSource?'分岐先URL':'分岐';entry.branchButton.title=p.branchSource?'本体で作成した分岐先URLを指定':'元の列を保持して隣で分岐を準備';}
       entry.root.hidden = !p.visible;
       entry.root.style.width = `${getPaneWidth(p)}px`;
-      entry.title.value = p.title;
+      if(!editingPaneTitle(entry))entry.title.value = p.title;
       if (!entry.iframe && p.url && p.visible && state.enabled) {
         // Filling an empty pane is safe. Existing loaded frames are never replaced.
         entry.iframe = buildFrame(p, entry.main, entry.foot);
@@ -1215,6 +1308,7 @@
     root.hidden = !p.visible;
     const spine=button('','列を折りたたむ / 展開',()=>setPaneFolded(p,!p.folded),'pane-spine');
     spine.appendChild(create('span','',p.title));root.appendChild(spine);
+    const foldedGrip=button('⠿','列をドラッグで移動',()=>{state.activeId=p.id;markActive();},'pane-folded-grip');root.appendChild(foldedGrip);
     const restoreButton=button('□','この列を元の幅に復元',()=>setPaneFolded(p,false),'pane-restore');restoreButton.setAttribute('aria-label','この列を復元');root.appendChild(restoreButton);
     const foldedCloseButton=button('×','この縮小タブを閉じる',event=>{
       event.stopImmediatePropagation();closePane(p);
@@ -1227,8 +1321,13 @@
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
     head.appendChild(index);
     const title = create('input', 'pane-title');
-    title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '表示名を編集'; title.setAttribute('aria-label', '列の表示名');
-    title.addEventListener('change', () => { p.title = Core.normalizeTitle(title.value); title.value = p.title; applyColumnWidths();safeSave();syncOverlay(); });
+    title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '拡張内の表示名（空欄で会話名に同期）。ChatGPT本体の名前は変更しません'; title.setAttribute('aria-label', '列の表示名');
+    title.addEventListener('change', () => {
+      p.titleMode=title.value.trim()?'local':'native';
+      p.title=p.titleMode==='local'?Core.normalizeTitle(title.value):(nativeTitles.get(Core.conversationKey(p.url))||p.title);
+      title.value=p.title;applyColumnWidths();safeSave();syncOverlay();
+    });
+    title.addEventListener('blur',()=>syncNativeTitles());
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
     const foot=create('span','pane-status');setPaneStatus(foot,'会話URL未指定');head.appendChild(foot);
@@ -1236,6 +1335,7 @@
     const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は折りたたんで保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
     const linkButton=button('リンク','このタブのURLをコピー',()=>copyPaneUrl(p),'pane-control pane-link');linkButton.setAttribute('aria-label','このタブのURLをコピー');head.appendChild(linkButton);
     const nativeButton=button('…','ChatGPTの会話メニューを開く',()=>openPaneNativeMenu(p),'pane-control pane-more');nativeButton.setAttribute('aria-label','ChatGPTの会話メニューを開く');head.appendChild(nativeButton);
+    const branchButton=button(p.branchSource?'分岐先URL':'分岐',p.branchSource?'分岐先URLを指定して隣に追加':'元の列を保持して隣で分岐を準備',()=>p.branchSource?importBranchUrl(p):prepareBranch(p),'pane-control pane-branch');head.appendChild(branchButton);
     const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
     const wideButton=button('↔','レビュー・分割画面用にこの列だけ広げる',()=>toggleSplitWidth(p),'pane-control');wideButton.setAttribute('aria-label','この列を広げる');wideButton.setAttribute('aria-pressed','false');head.appendChild(wideButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
@@ -1276,8 +1376,8 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, wideButton });
-    attachPaneDrag(root,grip,p);syncPaneOrder();applyColumnWidths();
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, foldedGrip, wideButton, branchButton });
+    attachPaneDrag(root,[grip,foldedGrip],p);syncPaneOrder();applyColumnWidths();
   }
 
   function paneSourceUrl(p) {
@@ -1343,6 +1443,43 @@
     updateFallbackDock(); syncOverlay(); safeSave();
   }
 
+  const nativeTitles=Core.createTitleTracker();
+  function editingPaneTitle(entry){return !!entry?.title&&(shadow?.activeElement===entry.title||document.activeElement===entry.title);}
+  function readNativeTitles(doc,onlyKey){
+    const values=new Map(),conflicts=new Set();
+    for(const nav of doc.querySelectorAll(SIDE_NAV))for(const link of nav.querySelectorAll('a[href]')){
+      const key=Core.conversationKey(link.href);if(!key||(onlyKey&&key!==onlyKey))continue;
+      // Accessible labels may describe an action rather than the conversation.
+      // Read visible link content, excluding nested menu controls and decorations.
+      const label=link.cloneNode(true);
+      for(const control of label.querySelectorAll('button,[role="button"],svg,[aria-hidden="true"],input'))control.remove();
+      const raw=(label.textContent||'').trim();if(!raw)continue;
+      const title=Core.normalizeTitle(raw);
+      if(values.has(key)&&values.get(key)!==title)conflicts.add(key);else values.set(key,title);
+    }
+    for(const key of conflicts)values.delete(key);return values;
+  }
+  function syncNativeTitles(){
+    if(!initialized)return;
+    for(const p of [...state.panes])if(p.branchSource)checkBranchLocation(p);
+    nativeTitles.observe(document,readNativeTitles(document),true);
+    for(const p of state.panes){
+      const frame=paneNodes.get(p.id)?.iframe;
+      try{
+        const doc=frame?.contentDocument,key=Core.conversationKey(p.url);
+        if(doc&&key&&Core.conversationKey(doc.location.href)===key)nativeTitles.observe(doc,readNativeTitles(doc,key));
+      }catch{/* Cross-origin or navigating documents are not title authorities. */}
+    }
+    let changed=false;
+    for(const p of state.panes){
+      const entry=paneNodes.get(p.id);
+      if(Core.applyNativeTitle(p,nativeTitles.get(Core.conversationKey(p.url)),editingPaneTitle(entry)))changed=true;
+      if(entry?.title&&!editingPaneTitle(entry))entry.title.value=p.title;
+      if(entry?.iframe)entry.iframe.title=`ChatGPT: ${p.title}`;
+    }
+    if(changed){applyColumnWidths();syncOverlay();updateFallbackDock();safeSave();}
+  }
+
   async function initialize() {
     if(initializing||initialized)return;initializing=true;
     const detached=await window.CGWWDetached?.boot;
@@ -1378,6 +1515,8 @@
     applyColumnWidths(); markActive();
     if (state.enabled) setEnabled(true,true);
     initializing=false;initialized=true;
+    syncNativeTitles();
+    window.setInterval(syncNativeTitles,1500);
     if(state.panes.length||closedPanes.length)safeSave();
     if(loadError)setStatus('ブラウザ再起動用の保存を開始できませんでした。このタブ内の復元のみ利用できます。',true);
     // Register only a capture listener. Disabled state leaves all ChatGPT links untouched.
