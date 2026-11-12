@@ -29,3 +29,12 @@ test('title modes survive workspace and group restoration, invalid modes discard
  for(const mode of ['local','native']){const result=C.restoreWorkspacePanes([{id:'a',url,title:'Name',titleMode:mode,folded:true}],()=> 'id');assert.equal(result[0].titleMode,mode);assert.equal(result[0].folded,true);}
  assert.equal(C.normalizeSessionPanes([{url,titleMode:'unknown'}])[0].titleMode,undefined);
 });
+
+test('explicit verified native rename supersedes unchanged source while preserving stale-source protection',()=>{
+ const t=C.createTitleTracker(),a={},b={},late={};
+ t.observe(a,new Map([[key,'Old']]));t.observe(b,new Map([[key,'Old']]));t.observe(b,new Map([[key,'Other']]));
+ t.observe(a,new Map([[key,'Old']]));assert.equal(t.get(key),'Other');
+ t.confirm(key,'Old');assert.equal(t.get(key),'Old');
+ t.observe(b,new Map([[key,'Other']]));t.observe(late,new Map([[key,'Other']]));assert.equal(t.get(key),'Old');
+ t.observe(b,new Map([[key,'Next']]));assert.equal(t.get(key),'Next');
+});

@@ -1310,7 +1310,7 @@
       if(entry.branchButton){entry.branchButton.textContent=p.branchSource?'分岐先URL':'分岐';entry.branchButton.title=p.branchSource?'本体で作成した分岐先URLを指定':'元の列を保持して隣で分岐を準備';}
       entry.root.hidden = !p.visible;
       entry.root.style.width = `${getPaneWidth(p)}px`;
-      if(!editingPaneTitle(entry))entry.title.value = p.title;
+      if(!editingPaneTitle(entry)&&!titleRenames.has(Core.conversationKey(p.url)))entry.title.value = p.title;
       if (!entry.iframe && p.url && p.visible && state.enabled) {
         // Filling an empty pane is safe. Existing loaded frames are never replaced.
         entry.iframe = buildFrame(p, entry.main, entry.foot);
@@ -1335,12 +1335,10 @@
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
     head.appendChild(index);
     const title = create('input', 'pane-title');
-    title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '拡張内の表示名（空欄で会話名に同期）。ChatGPT本体の名前は変更しません'; title.setAttribute('aria-label', '列の表示名');
-    title.addEventListener('change', () => {
-      p.titleMode=title.value.trim()?'local':'native';
-      p.title=p.titleMode==='local'?Core.normalizeTitle(title.value):(nativeTitles.get(Core.conversationKey(p.url))||p.title);
-      title.value=p.title;applyColumnWidths();safeSave();syncOverlay();
-    });
+    title.type = 'text'; title.maxLength = 100; title.value = p.title;
+    title.title = 'ChatGPTの会話名を変更（保存済み会話のみ）。空欄で既存の表示名を解除して自動同期';
+    title.setAttribute('aria-label', 'ChatGPTの会話名');
+    title.addEventListener('change', () => { void renamePaneTitle(p,title); });
     title.addEventListener('blur',()=>syncNativeTitles());
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
@@ -1392,6 +1390,51 @@
     scroller.appendChild(root);
     paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, foldedGrip, wideButton, branchButton });
     attachPaneDrag(root,[grip,foldedGrip],p);syncPaneOrder();applyColumnWidths();
+  }
+
+  // A request owns its exact live iframe/document. It never navigates a pane or
+  // silently turns a failed server rename into a persistent local display alias.
+  const titleRenames=new Map();
+  async function renamePaneTitle(p,title){
+    const key=Core.conversationKey(p.url),entry=paneNodes.get(p.id);
+    if(titleRenames.has(key)){title.value=p.title;setStatus('この会話の名前を変更中です。完了をお待ちください。',true);return;}
+    const requested=title.value.trim();
+    if(!requested){
+      p.titleMode='native';p.title=nativeTitles.get(key)||p.title;title.value=p.title;
+      applyColumnWidths();safeSave();syncOverlay();return;
+    }
+    if(requested===p.title&&p.titleMode==='native')return;
+    const frame=entry?.iframe;
+    let doc;
+    try{doc=frame?.contentDocument;}catch{/* Origin checks below fail closed. */}
+    const valid=()=>{try{return state.enabled&&state.panes.includes(p)&&paneNodes.get(p.id)===entry&&
+      entry.iframe===frame&&frame?.isConnected&&p.visible&&!p.folded&&
+      Core.conversationKey(p.url)===key&&frame.contentDocument===doc&&
+      window.CGWWTitleRename?.savedKey(frame.contentWindow.location.href)===key;
+    }catch{return false;}};
+    if(!window.CGWWTitleRename?.savedKey(p.url)||p.branchSource||!doc||!valid()){
+      title.value=p.title;setStatus('このタブでは会話名を変更できません。保存済みの通常会話・プロジェクト会話を開くか、ChatGPT本体の名前変更を使ってください。表示名は変更していません。',true);return;
+    }
+    const token={};titleRenames.set(key,token);title.readOnly=true;title.setAttribute('aria-busy','true');
+    setStatus('ChatGPTの会話名を変更しています…');
+    try{
+      nativeTitles.observe(doc,readNativeTitles(doc,key));
+      await window.CGWWTitleRename.rename({doc,key,title:Core.normalizeTitle(requested),valid,
+        readTitle:()=>readNativeTitles(doc,key).get(key)});
+      if(!valid())throw Object.assign(Error('context'),{submitted:true});
+      nativeTitles.observe(doc,readNativeTitles(doc,key));
+      nativeTitles.confirm(key,Core.normalizeTitle(requested));
+      p.title=Core.normalizeTitle(requested);p.titleMode='native';
+      setStatus('ChatGPT画面で新しい会話名を確認しました。');
+    }catch(error){
+      setStatus(error?.submitted?
+        '名前変更の保存結果を確認できませんでした。自動再試行はしません。ChatGPT本体で会話名を確認してください。':
+        '名前変更を完了できませんでした。ChatGPT本体の会話メニューで変更してください。表示名は変更していません。',true);
+    }finally{
+      if(titleRenames.get(key)===token)titleRenames.delete(key);
+      title.readOnly=false;title.removeAttribute('aria-busy');title.value=p.title;
+      syncNativeTitles();applyColumnWidths();safeSave();syncOverlay();
+    }
   }
 
   function paneSourceUrl(p) {
@@ -1487,8 +1530,8 @@
     let changed=false;
     for(const p of state.panes){
       const entry=paneNodes.get(p.id);
-      if(Core.applyNativeTitle(p,nativeTitles.get(Core.conversationKey(p.url)),editingPaneTitle(entry)))changed=true;
-      if(entry?.title&&!editingPaneTitle(entry))entry.title.value=p.title;
+      if(Core.applyNativeTitle(p,nativeTitles.get(Core.conversationKey(p.url)),editingPaneTitle(entry)||titleRenames.has(Core.conversationKey(p.url))))changed=true;
+      if(entry?.title&&!editingPaneTitle(entry)&&!titleRenames.has(Core.conversationKey(p.url)))entry.title.value=p.title;
       if(entry?.iframe)entry.iframe.title=`ChatGPT: ${p.title}`;
     }
     if(changed){applyColumnWidths();syncOverlay();updateFallbackDock();safeSave();}

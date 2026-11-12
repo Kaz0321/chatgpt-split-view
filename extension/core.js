@@ -213,6 +213,9 @@
     const sources=new WeakMap(), names=new Map();
     return {
       get:key=>names.get(key),
+      // Only call after the native rename UI and exact conversation label agree.
+      // This also handles an explicit rename back to an unchanged source value.
+      confirm(key,title){if(key&&title)names.set(key,title);},
       observe(source,values){
         const previous=sources.get(source);sources.set(source,new Map(values));
         for(const [key,title] of values){

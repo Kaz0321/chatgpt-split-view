@@ -5,6 +5,7 @@ function harness(extra={}) {
   let doc;
   class Element {
     constructor(tag='div'){this.tagName=tag.toUpperCase();this.attributes={};this.listeners={};this.children=[];this.style={};this.dataset={};this.hidden=false;this.value='';this.textContent='';this.ownerDocument=doc;this.offsetWidth=154;this.offsetHeight=36;this.classList={toggle(){},add(){},remove(){}};}
+    removeAttribute(k){delete this.attributes[k];}
     get firstChild(){return this.children[0];} remove(){} insertBefore(e,before){this.appendChild(e);this.children=this.children.filter(x=>x!==e);const i=this.children.indexOf(before);this.children.splice(i<0?this.children.length:i,0,e);}
     appendChild(e){if(e.parentElement)e.parentElement.children=e.parentElement.children.filter(x=>x!==e);this.children.push(e);e.parentElement=this;return e;} append(...es){es.forEach(e=>this.appendChild(e));} replaceChildren(...es){this.children=[];this.value='';this.append(...es);}
     addEventListener(t,f){(this.listeners[t]??=[]).push(f);} setAttribute(k,v){this.attributes[k]=String(v);} getAttribute(k){return this.attributes[k]??null;} hasAttribute(k){return k in this.attributes;}
@@ -14,7 +15,7 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={setTimeout:()=>1,clearTimeout(){},Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={recordStatus(fn){setStatus=fn;},mergeGroupPanes,expireBranch(p){branchActions.set(p,{expires:0});},prepareBranch,handleBranchClick,checkBranchLocation,finishBranch,importBranchUrl,useRealRender(){renderPane=realRender;},shadowFocus(el){shadow.activeElement=el;},readNativeTitles,syncNativeTitles,ready(){initialized=true;},foldAllPanes,refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={renamePaneTitle,recordStatus(fn){setStatus=fn;},mergeGroupPanes,expireBranch(p){branchActions.set(p,{expires:0});},prepareBranch,handleBranchClick,checkBranchLocation,finishBranch,importBranchUrl,useRealRender(){renderPane=realRender;},shadowFocus(el){shadow.activeElement=el;},readNativeTitles,syncNativeTitles,ready(){initialized=true;},foldAllPanes,refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {panel,overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
@@ -459,7 +460,7 @@ test('title sync updates real pane controls, folded spine and list while preserv
  h.doc.querySelectorAll=()=>[{querySelectorAll:()=>[{href:url,cloneNode:()=>({textContent:name,querySelectorAll:()=>[]})}]}];
  h.a.syncNativeTitles();assert.equal(p.title,'Native');assert.equal(entry.title.value,'Native');assert.equal(entry.spine.firstChild.textContent,'Native');
  entry.title.focus();h.doc.activeElement={};entry.title.value='Typing';h.a.shadowFocus(entry.title);name='Later';h.a.syncNativeTitles();assert.equal(entry.title.value,'Typing');assert.equal(p.title,'Native');
- entry.title.emit('change');assert.equal(p.titleMode,'local');assert.equal(p.title,'Typing');
+ entry.title.emit('change');assert.equal(p.titleMode,'native');assert.equal(p.title,'Native'),'unsupported rename must not become an alias';
  entry.title.value='';entry.title.emit('change');assert.equal(p.titleMode,'native');assert.equal(p.title,'Later');
  h.a.shadowFocus(null);h.doc.activeElement=null;entry.title.emit('blur');assert.equal(entry.title.value,'Later');assert.equal(h.a.ui().menuControls.parkedList.children[0].children[0].textContent,'Later');
 
@@ -564,4 +565,69 @@ test('provisional URL case variants share identity and cannot create preparation
  const existing={id:'provisional',url:upper,title:'Existing branch',visible:true,width:480};h.a.state().panes.push(existing);h.a.realRender(existing);
  const frame=h.a.entries().get(existing.id).iframe;const beforeOrder=h.a.state().panes.map(x=>x.id);h.a.importBranchUrl(pending);assert.deepEqual(h.a.state().panes.map(x=>x.id),beforeOrder);frame.contentWindow={location:{href:upper}};
  h.a.importBranchUrl(pending);assert.equal(h.a.state().panes.length,3);assert.equal(h.a.state().panes[1],existing);assert.equal(h.a.entries().get(existing.id).iframe,frame);
+});
+
+function renameWorkspace(rename){
+ const Native=require('../extension/title-rename.js');
+ const h=harness({CGWWTitleRename:{savedKey:Native.savedKey,rename}});
+ const url=Core.ORIGIN+'/c/fixture001';
+ const panes=[{id:'a',url,title:'Alias',titleMode:'local',visible:true,width:480,draft:'keep'},
+  {id:'b',url,title:'Other alias',titleMode:'local',visible:true},
+  {id:'c',url,title:'Old',titleMode:'native',visible:true}];
+ h.a.init(panes);for(const p of panes)h.a.realRender(p);
+ h.doc.querySelectorAll=()=>[];
+ let nativeName='Old';
+ const child={location:{href:url},querySelectorAll:()=>[{querySelectorAll:()=>[{href:url,cloneNode:()=>({textContent:nativeName,querySelectorAll:()=>[]})}]}]};
+ for(const entry of h.a.entries().values())entry.iframe={isConnected:true,contentDocument:child,contentWindow:{location:{href:url}},src:url,draft:'untouched'};
+ h.a.enabled(true);h.a.ready();const statuses=[];h.a.recordStatus((text,error)=>statuses.push({text,error}));h.a.syncNativeTitles();
+ return {...h,panes,child,statuses,setName(name){nativeName=name;}};
+}
+test('verified rename changes native title, preserves other aliases and exact live frame/draft',async()=>{
+ let complete,calls=0,args;
+ const h=renameWorkspace(options=>{calls++;args=options;return new Promise(resolve=>{complete=resolve;});});
+ const p=h.panes[0],entry=h.a.entries().get('a'),frame=entry.iframe;entry.title.value='New';
+ const result=h.a.renamePaneTitle(p,entry.title);
+ assert.equal(entry.title.readOnly,true);assert.equal(entry.title.getAttribute('aria-busy'),'true');assert.equal(p.title,'Alias');assert(args.valid());
+ h.a.syncNativeTitles();assert.equal(entry.title.value,'New');assert.equal(p.titleMode,'local');
+ const duplicate=h.a.entries().get('c');duplicate.title.value='Another';await h.a.renamePaneTitle(h.panes[2],duplicate.title);assert.equal(calls,1);
+ h.setName('New');assert.equal(args.readTitle(),'New');complete();await result;
+ assert.equal(p.title,'New');assert.equal(p.titleMode,'native');assert.equal(h.panes[1].title,'Other alias');assert.equal(h.panes[2].title,'New');
+ assert.equal(entry.iframe,frame);assert.equal(frame.contentDocument,h.child);assert.equal(frame.draft,'untouched');assert.equal(p.draft,'keep');assert.equal(p.width,480);
+ assert.equal(entry.title.readOnly,false);assert.equal(entry.title.getAttribute('aria-busy'),null);
+});
+test('failed or uncertain native save keeps existing local alias and clears in-flight lock',async()=>{
+ for(const submitted of [false,true]){
+  let calls=0;const h=renameWorkspace(async()=>{calls++;throw Object.assign(Error('timeout'),{submitted});});
+  const p=h.panes[0],entry=h.a.entries().get('a');entry.title.value='New';await h.a.renamePaneTitle(p,entry.title);
+  assert.equal(p.title,'Alias');assert.equal(p.titleMode,'local');assert.equal(entry.title.value,'Alias');assert.equal(entry.title.readOnly,false);
+  assert.match(h.statuses.at(-1).text,submitted?/保存結果を確認できません/:/表示名は変更していません/);
+  entry.title.value='Retry requested';await h.a.renamePaneTitle(p,entry.title);assert.equal(calls,2);
+ }
+});
+test('native rename rejects live navigation, frame replacement and pane closure before committing',async()=>{
+ for(const change of ['navigation','document','frame','closed','disabled']){
+  let complete,args;const h=renameWorkspace(options=>{args=options;return new Promise(resolve=>{complete=resolve;});});
+  const p=h.panes[0],entry=h.a.entries().get('a');entry.title.value='New';const result=h.a.renamePaneTitle(p,entry.title);
+  if(change==='navigation')entry.iframe.contentWindow.location.href=Core.ORIGIN+'/c/different123';
+  if(change==='document')entry.iframe.contentDocument={};
+  if(change==='frame')entry.iframe={};
+  if(change==='closed')h.a.state().panes.splice(0,1);
+  if(change==='disabled')h.a.enabled(false);
+  assert.equal(args.valid(),false);complete();await result;
+  assert.equal(p.title,'Alias');assert.equal(p.titleMode,'local');assert.equal(entry.title.readOnly,false);
+  assert.match(h.statuses.at(-1).text,/保存結果を確認できません/);
+ }
+});
+test('unsupported routes and unavailable frames never rename or silently create aliases',async()=>{
+ for(const route of ['/','/local/fixture001','/g/g-fixture','/g/g-p-project/c/fixture001','/c/local-chatgpt%3A11111111-1111-1111-1111-111111111111']){
+  let calls=0;const h=renameWorkspace(async()=>{calls++;});const p=h.panes[0],entry=h.a.entries().get('a');
+  p.url=Core.ORIGIN+route;entry.title.value='New';await h.a.renamePaneTitle(p,entry.title);
+  assert.equal(calls,0);assert.equal(p.title,'Alias');assert.equal(p.titleMode,'local');assert.equal(entry.title.value,'Alias');
+ }
+ const h=renameWorkspace(async()=>assert.fail('must not run'));const p=h.panes[0],entry=h.a.entries().get('a');
+ Object.defineProperty(entry.iframe,'contentWindow',{get(){throw Error('cross-origin');}});entry.title.value='New';await h.a.renamePaneTitle(p,entry.title);assert.equal(p.title,'Alias');
+});
+test('blank title releases old alias without submitting a native rename',async()=>{
+ const h=renameWorkspace(async()=>assert.fail('must not run')),p=h.panes[0],entry=h.a.entries().get('a');
+ entry.title.value='  ';await h.a.renamePaneTitle(p,entry.title);assert.equal(p.titleMode,'native');assert.equal(p.title,'Old');
 });

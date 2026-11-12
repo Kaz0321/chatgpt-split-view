@@ -22,6 +22,7 @@ Windows などで Python が `python` 名の場合は `python scripts/package.py
 - `extension/core.js`: URL・設定・順序の純粋関数
 - `extension/content-layout.js`: 本文ラッパーの寸法検出と限定的な余白調整
 - `extension/drafts.js`: 同一タブに限定した未送信テキストの保存・復元
+- `extension/title-rename.js`: 同じ会話の標準UIを限定操作する名前変更アダプター
 - `extension/workspace.js`: ページ側 UI、sidebar、iframe、popup メッセージ
 - `extension/popup.*`: 頻繁に使う操作
 - `extension/options.*`: 低頻度設定と表示設定 JSON
@@ -33,7 +34,7 @@ Windows などで Python が `python` 名の場合は `python scripts/package.py
 
 ## 配布 ZIP
 
-`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v1.0.0-candidate.zip` に入れます。`extension/` の15実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
+`scripts/package.py` は明示した実行ファイルと文書だけを `dist/chatgpt-split-view-v1.0.0-candidate.zip` に入れます。`extension/` の16実行ファイルはZIP直下へ配置し、`manifest.json` が直下にある展開フォルダーをそのまま読み込める形にします。文書はrepo内の相対パスを保ちます。Git metadata、テスト、ログ、画像、環境設定、公開サイトの配備資材を混ぜません。ZIP内時刻・ファイルモード・順序を固定し、無圧縮にすることで同一ソースから同一バイト列を生成します。`--check` は既存 ZIP が現ソースと一致するかを検査します。
 
 ZIP はリポジトリ全体のソース ZIP と異なり、開発用テスト／スクリプトを含みません。開発・再テストにはこのリポジトリの checkout を使ってください。
 
@@ -113,3 +114,16 @@ manual／equalの保存形式と既定値620pxは維持します。manualは指�
 load・resize・既存DOM observerを100ms単位にまとめて再測定します。同じdocument内のscrollbar余裕は減らさず、幅とscrollbarの往復を防ぎます。文書の置換時に余裕を初期化。iframeの再生成・src変更・pollingは行いません。寸法検出は本文文字列や入力・添付内容を読み取りません。
 
 受入では、同じ架空文章を元ページと列で比較し、広幅で本文幅が一致し、狭幅では行数が増えることを確認します。border-box／content-box、祖先余白、縦scrollbarの有無、長いコード／表、10列の幅変更・等分・並べ替え・下書き保持を含めてください。現行ChatGPTのDOM選択・内部scroll container・responsive breakpointへの適合は、実ページで別途検証が必要です。
+
+
+## v1.0.15 名前変更の手動受入
+
+ユーザーが許可したダミーの保存済み会話で実施してください。本番の会話名を試験のために変更しないでください。
+
+- タイトル欄で変更し、標準の名前変更ダイアログが開き、保存後に本体履歴・列名・折りたたみ表示が一致すること。別のページで読み直して永続化も確認。
+- iframeとdocumentが同一のままで、未送信テキスト・添付・スクロール・生成が維持されること。再読み込みを実施する保存確認とは別ケースで確認。
+- 名前変更の前後に元画面へ移動、列を閉じる、別会話へ遷移、認証画面へ移動、メニューのキャンセル、保存エラーを試す。別会話を変更せず、保存不明時に再試行しないこと。
+- 旧ローカル表示名、空欄での同期復帰、同じ会話の複数列、別列でタイトル編集中の場合を確認。
+- 確認していないDOMや言語では通知して止まること。日本語UIの構造を観測し、英語の既知ラベルも限定対応していますが、英語UIの実機受入は未実施です。
+
+本体メニューとダイアログを読み取り確認しただけでは、拡張による保存の動作確認を完了したことにはなりません。
