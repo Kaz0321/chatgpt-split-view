@@ -7,7 +7,13 @@ Date: 2026-11-13. Final automated run: `npm run verify`, 346/346 tests; determin
 - **Code**: reviewed the event, route, layering and document-lifecycle paths.
 - **Synthetic**: Node tests execute candidate functions with explicit DOM/state doubles; not browser rendering or service success.
 - **Local Chrome fixture**: actual candidate modal-layer functions, browser CSS, hit testing and same iframe/document/composer identity on a localhost mock page. Five automated checks passed; manual open/cancel visually passed. Not ChatGPT E2E.
-- **Live old runtime**: existing installed runtime, exact installed version not asserted. Read-only UI opening/dismissal and safe native navigation. No candidate reload/install.
+- **Live old runtime**: existing installed runtime, exact installed version not asserted. Read-only UI opening/dismissal and safe native navigation. Candidate files were subsequently staged in the installed extension directory, but the browser runtime was not activated or reloaded.
+
+## Safe candidate activation attempt
+
+After staging the candidate files, a new disposable Chrome tab opened ChatGPT for a safe service-side check. That tab still loaded the old runtime: the candidate's `#cgww-host[data-cgww-native-modal]` display:none stylesheet signature was absent. Only the disposable test tab was closed. The existing workspace holding unsaved work was not touched, and no extension/global reload or service-side data change was performed.
+
+Candidate ChatGPT E2E remains blocked until the candidate runtime can be safely activated. Files staged on disk are not evidence that Chrome is executing them. The 346 automated tests and local Chrome fixture remain valid candidate checks, but neither is service E2E. Publication remains on hold pending the promised live candidate testing.
 
 ## Coverage matrix
 

@@ -540,7 +540,7 @@ test('memory confirmation cancellation prevents branch preparation and manual UR
 });
 
 test('observed native provisional branch URL is adopted without reload and later follows saved URL',()=>{
- const {h,pending,frame,original,p}=branchFixture();const provisional=Core.ORIGIN+'/c/local-chatgpt%3A1647ed5a-3d27-42bc-a768-552610a7bc2d';
+ const {h,pending,frame,original,p}=branchFixture();const provisional=Core.ORIGIN+'/c/local-chatgpt%3Aabcdef12-3456-4789-abcd-ef1234567890';
  assert.equal(Core.chatUrl(provisional),provisional);assert.equal(Core.chatUrl(provisional+'-extra'),null);
  h.a.handleBranchClick(branchEvent('新しいチャットに分岐'),pending);frame.contentWindow.location.href=provisional;frame.contentDocument=nativeBranchEvidence(provisional,pending.branchOrigin);h.a.checkBranchLocation(pending);
  assert.equal(pending.url,provisional);assert.equal(pending.branchSource,undefined);assert.equal(h.a.entries().get(p.id).iframe,original);
@@ -557,7 +557,7 @@ test('manual import never reports placement success after cancellation or pane l
 });
 
 test('provisional URL case variants share identity and cannot create preparation or a fresh imported frame',()=>{
- const upper=Core.ORIGIN+'/c/local-chatgpt%3A1647ED5A-3D27-42BC-A768-552610A7BC2D',lower=upper.toLowerCase();
+ const upper=Core.ORIGIN+'/c/local-chatgpt%3AABCDEF12-3456-4789-ABCD-EF1234567890',lower=upper.toLowerCase();
  assert.equal(Core.chatUrl(upper),Core.chatUrl(lower));assert.equal(Core.conversationKey(upper),Core.conversationKey(lower));
  assert.equal(Core.isProvisionalChat(upper),true);assert.equal(Core.isProvisionalChat(lower),true);assert.equal(Core.isProvisionalChat(lower+'-invalid'),false);
  const {h,p,pending,original}=branchFixture();original.contentWindow.location.href=lower;assert.equal(h.a.prepareBranch(p),undefined);

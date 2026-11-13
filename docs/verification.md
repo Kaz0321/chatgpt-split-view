@@ -1,6 +1,6 @@
 ## v1.0.18 native UI compatibility
 
-See [the operation-by-operation audit](native-operations-audit.md). Candidate Node regressions and the local Chrome modal fixture pass. Existing-runtime ChatGPT checks confirmed the modal/page occlusion bugs; no candidate install or service-side creation/save E2E was performed. Do not reload a workspace holding unsaved provisional branches merely to test this candidate.
+See [the operation-by-operation audit](native-operations-audit.md). Candidate Node regressions and the local Chrome modal fixture pass. Existing-runtime ChatGPT checks confirmed the modal/page occlusion bugs. Candidate files were staged in the installed extension directory, but the runtime was not activated. A new disposable ChatGPT tab still loaded the old runtime, without the candidate modal-yield stylesheet signature; only that test tab was closed. The protected workspace was not touched, and no extension/global reload or service data changes were performed. Candidate service E2E remains blocked until safe activation, and publication is on hold pending that live testing. Automated tests and the local browser fixture do not establish service-side creation/save success. Do not reload a workspace holding unsaved provisional branches merely to test this candidate.
 
 ## v1.0.16 分岐URL確認（2026-11-13）
 
