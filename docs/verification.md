@@ -1,3 +1,13 @@
+## v1.0.16 分岐URL確認（2026-11-13）
+
+既存画面の読み取りで、iframe.src は元会話でも contentWindow.location.href は異なる local-chatgpt 仮ID、ChatGPT本体には元会話リンクと「からの続き」がある一方、拡張表示が分岐準備のままという状態を確認。既存ランタイムの正確な版は未確認。実会話を新たに分岐・送信・再読み込みしていない。
+
+`npm run verify` は311テスト合格、構文・manifest整合性も合格。PythonによるZIP生成・ソース一致確認も合格。
+
+合成テスト: 期限切れ/未捕捉クリックからのネイティブ分岐元証拠による採用、異なる会話IDの必須化、別の元リンク・別コンテナ・曖昧なルート・汎用リンク・偽アイコンの拒否、元会話変更/削除時の拒否、iframe/src/document/入力/添付維持、保存URL更新、仮→保存済みURLの定期追従、未作成の常時表示、本体サブメニュー通過を確認。
+
+実ブラウザーでの候補版E2Eと仮URLの再起動後復元は未検証。仮URL画面を再読み込みして更新を適用しないこと。
+
 # v1.0.15 会話名変更の検証範囲（2026-11-12）
 
 `npm run verify`: 303/303件PASS、manifest参照・バージョン一致・JavaScript構文検査PASS。`python scripts/package.py` と `python scripts/package.py --check`: PASS。

@@ -599,7 +599,7 @@
       .board::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:#879bb3;z-index:4;pointer-events:none}
       .scroller{flex:1;min-height:0;display:flex;gap:4px;padding:4px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
-      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:64px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .branch-notice,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:64px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
       .pane-folded-grip{flex:0 0 32px;width:100%;height:32px;min-height:32px;padding:0;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:grab;font:16px system-ui}.pane-folded-grip:active{cursor:grabbing}.pane-folded-grip:hover{background:#d5e3f0}.pane-folded-grip:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-folded-close{position:absolute;bottom:0;left:0;z-index:3;width:100%;height:32px;padding:0;border:0;border-top:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#526579;cursor:pointer}.pane-folded-close:hover{background:#fbe4e4;color:#a52222}.pane-folded-close:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
@@ -609,7 +609,7 @@
       .pane-close{width:24px;padding:0;font-size:20px;font-weight:400}.pane-close:hover{border-color:#e5c5c5;background:#fff0f0;color:#a33131}
       .pane-index{flex:none;font-size:10px;color:#497198;padding:2px}.pane-title{flex:1;min-width:45px;width:50px;height:24px;padding:2px 3px;border:1px solid transparent;border-radius:4px;font-size:12px;color:#243b51}.pane-title:focus{border-color:#8dabcb}
       .pane-status{font-size:10px;flex:none;color:#8192a3;cursor:help}.pane-status[data-state=loaded]{color:#3e8b6a}.pane-status[data-state=warning]{color:#b46825}
-      .pane-main{position:relative;flex:1;min-height:0;background:#fff}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{padding:24px 15px;line-height:1.8;color:#62748a;text-align:center}
+      .branch-notice{padding:8px 12px;background:#fff4d6;color:#654b12;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.branch-notice[hidden]{display:none}.pane-main{position:relative;flex:1;min-height:0;background:#fff}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{padding:24px 15px;line-height:1.8;color:#62748a;text-align:center}
       .resize{position:absolute;right:0;top:32px;bottom:0;width:5px;cursor:ew-resize;background:transparent;z-index:1}.resize:hover{background:#4c91df88}
       .hintbar{position:absolute;bottom:10px;left:10px;right:10px;z-index:4;padding:7px 10px;border:1px solid #c4d3e2;border-radius:7px;background:#f8fbffff;pointer-events:none;font-size:11px;color:#45617d}.flash.warning{color:#a94f29}
       .dock{position:fixed;inset:0 auto 0 0;width:276px;z-index:2147483645;overflow:auto;padding:12px;background:#fafcff;border-right:1px solid #c7d5e3;color:#243c54;font:12px system-ui}.dock h3{font-size:14px;margin:4px 0}.dock-note{font-size:11px;line-height:1.6;color:#748496}.dock-item{display:block;width:100%;border:0;border-radius:5px;background:transparent;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:9px 6px;margin:3px 0;color:#314b66}.dock-item:hover,.dock-item.selected{background:#e0edfc}.dock-control{width:100%;padding:7px;border:1px solid #a4bdd4;border-radius:5px;background:#f0f6fc;color:#35546e}.dock-empty{font-size:11px;color:#7b8c9b}
@@ -1226,6 +1226,16 @@
   }
 
   const branchActions=new WeakMap();
+  function updateBranchNotice(p){
+    const notice=paneNodes.get(p.id)?.branchNotice;if(!notice)return;
+    notice.hidden=!p.branchSource;
+    if(!p.branchSource)return;
+    let same=null;
+    try{const key=Core.conversationKey(paneNodes.get(p.id)?.iframe?.contentWindow.location.href);if(key)same=key===Core.conversationKey(p.branchOrigin);}catch{}
+    notice.textContent=same===true?
+      '分岐未作成：元の会話と同じURLです。この列のメッセージの「…」→「会話を分岐する」→「新しいチャットに分岐」を選んでください。':
+      '分岐先URLを確認中です。新しい会話と元の会話の関係を確認できるまで、分岐完了として保存しません。';
+  }
   function liveBranchSourceUrl(source){
     const frame=paneNodes.get(source?.id)?.iframe;
     if(!frame)return null;
@@ -1245,14 +1255,14 @@
     const p={id:newId(),url:origin,branchSource:source.id,branchOrigin:origin,title:'分岐準備: '+source.title,titleMode:'local',width:source.width,autoWidth:source.autoWidth,visible:true};
     state.panes.splice(state.panes.indexOf(source)+1,0,p);
     renderPane(p);syncPaneOrder();selectConversation(p);safeSave();
-    setStatus('隣の準備列で、分岐したいメッセージの「…」から本体の分岐を選んでください。元列の未送信入力・添付はコピーしません。');
+    setStatus('まだ分岐は作成していません。隣の準備列で、分岐したいメッセージの「…」から本体の分岐を選んでください。元列の未送信入力・添付はコピーしません。');
     return p;
   }
   function handleBranchClick(event,p){
     if(event.button!==0||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
     const control=event.target?.closest?.('[role="menuitem"],button,a');
     const label=(control?.textContent||'').trim();
-    const branch=isNativeActionMenuEvent(event)&&Core.isBranchLabel(label);
+    const branch=control?.getAttribute?.('aria-haspopup')!=='menu'&&isNativeActionMenuEvent(event)&&Core.isBranchLabel(label);
     if(p.branchSource){
       branchActions.delete(p);
       if(branch){
@@ -1279,14 +1289,39 @@
     reorderPane(p.id,source.id,true);renderPane(p);selectConversation(p);safeSave();
     setStatus(Core.isProvisionalChat(url)?'分岐先を隣に表示しました。本体の仮URLのため、再読み込みや終了後の復元は保証できません。':'分岐先を元の列の隣に表示しました。');return true;
   }
+  // Native branch attribution is durable DOM evidence, unlike a short-lived click
+  // token. Scope it to the currently displayed conversation, never sidebar links.
+  function hasNativeBranchEvidence(doc,href,origin){
+    const key=Core.conversationKey(href),sourceKey=Core.conversationKey(origin);
+    if(!doc||!key||key===sourceKey||Core.conversationKey(doc.location?.href)!==key)return false;
+    const roots=Array.from(doc.querySelectorAll('[data-chatgpt-conversation-selection-target][data-thread-find-target="conversation"]'))
+      .filter(el=>Core.conversationKey(Core.ORIGIN+'/c/'+encodeURIComponent(el.getAttribute('data-chatgpt-conversation-selection-target')||''))===key);
+    if(roots.length!==1)return false;
+    const root=roots[0];
+    return Array.from(root.querySelectorAll('[data-talvt-turn-state="complete"] a[dir="auto"][data-discover="true"][href]')).some(link=>{
+      if(Core.conversationKey(link.href)!==sourceKey||link.closest('[data-chatgpt-conversation-selection-target]')!==root)return false;
+      const footer=link.parentElement;
+      if(!footer||footer.querySelectorAll('a[href]').length!==1)return false;
+      const continuation=Array.from(footer.childNodes).filter(node=>node.nodeType===3).map(node=>node.textContent).join('').trim();
+      if(continuation!=='からの続き')return false;
+      return Array.from(footer.querySelectorAll('svg use')).some(icon=>(icon.getAttribute('href')||'').split('#')[1]==='codex-icon-arrow-branch-light-16');
+    });
+  }
   function checkBranchLocation(p){
-    const action=branchActions.get(p);if(!action)return;
-    if(Date.now()>action.expires){branchActions.delete(p);return;}
+    if(!p.branchSource||!state.panes.includes(p))return;
+    updateBranchNotice(p);
+    const action=branchActions.get(p);
+    if(action&&Date.now()>action.expires)branchActions.delete(p);
     try{
-      const href=paneNodes.get(p.id)?.iframe?.contentWindow.location.href;
+      const frame=paneNodes.get(p.id)?.iframe,href=frame?.contentWindow.location.href;
       const key=Core.conversationKey(href);
       if(!key){branchActions.delete(p);return;}
-      if(key!==Core.conversationKey(p.branchOrigin)){branchActions.delete(p);finishBranch(p,href);}
+      if(key===Core.conversationKey(p.branchOrigin))return;
+      // A distinct URL or recent click alone cannot prove this is the branch.
+      // Always require native attribution to the exact original conversation.
+      if(hasNativeBranchEvidence(frame.contentDocument,href,p.branchOrigin)){
+        branchActions.delete(p);finishBranch(p,href);
+      }
     }catch{branchActions.delete(p);}
   }
   function importBranchUrl(p){
@@ -1307,7 +1342,8 @@
   function renderPane(p) {
     let entry = paneNodes.get(p.id);
     if (entry) {
-      if(entry.branchButton){entry.branchButton.textContent=p.branchSource?'分岐先URL':'分岐';entry.branchButton.title=p.branchSource?'本体で作成した分岐先URLを指定':'元の列を保持して隣で分岐を準備';}
+      updateBranchNotice(p);
+      if(entry.branchButton){entry.branchButton.textContent=p.branchSource?'分岐先URL':'分岐準備';entry.branchButton.title=p.branchSource?'本体で作成した分岐先URLを指定':'元の列を保持して隣で分岐を準備';}
       entry.root.hidden = !p.visible;
       entry.root.style.width = `${getPaneWidth(p)}px`;
       if(!editingPaneTitle(entry)&&!titleRenames.has(Core.conversationKey(p.url)))entry.title.value = p.title;
@@ -1347,11 +1383,12 @@
     const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は折りたたんで保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
     const linkButton=button('リンク','このタブのURLをコピー',()=>copyPaneUrl(p),'pane-control pane-link');linkButton.setAttribute('aria-label','このタブのURLをコピー');head.appendChild(linkButton);
     const nativeButton=button('…','ChatGPTの会話メニューを開く',()=>openPaneNativeMenu(p),'pane-control pane-more');nativeButton.setAttribute('aria-label','ChatGPTの会話メニューを開く');head.appendChild(nativeButton);
-    const branchButton=button(p.branchSource?'分岐先URL':'分岐',p.branchSource?'分岐先URLを指定して隣に追加':'元の列を保持して隣で分岐を準備',()=>p.branchSource?importBranchUrl(p):prepareBranch(p),'pane-control pane-branch');head.appendChild(branchButton);
+    const branchButton=button(p.branchSource?'分岐先URL':'分岐準備',p.branchSource?'分岐先URLを指定して隣に追加':'元の列を保持して隣で分岐を準備',()=>p.branchSource?importBranchUrl(p):prepareBranch(p),'pane-control pane-branch');head.appendChild(branchButton);
     const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
     const wideButton=button('↔','レビュー・分割画面用にこの列だけ広げる',()=>toggleSplitWidth(p),'pane-control');wideButton.setAttribute('aria-label','この列を広げる');wideButton.setAttribute('aria-pressed','false');head.appendChild(wideButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
+    const branchNotice=create('div','branch-notice');branchNotice.setAttribute('role','status');root.appendChild(branchNotice);
     const main = create('div', 'pane-main');
     let iframe;
     if (p.url && state.enabled && p.visible) iframe = buildFrame(p, main, foot);
@@ -1388,7 +1425,8 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, foldedGrip, wideButton, branchButton });
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, foldedGrip, wideButton, branchButton, branchNotice });
+    updateBranchNotice(p);
     attachPaneDrag(root,[grip,foldedGrip],p);syncPaneOrder();applyColumnWidths();
   }
 
@@ -1522,6 +1560,7 @@
     nativeTitles.observe(document,readNativeTitles(document),true);
     for(const p of state.panes){
       const frame=paneNodes.get(p.id)?.iframe;
+      if(frame&&Core.isProvisionalChat(p.url))syncNewChatLocation(frame);
       try{
         const doc=frame?.contentDocument,key=Core.conversationKey(p.url);
         if(doc&&key&&Core.conversationKey(doc.location.href)===key)nativeTitles.observe(doc,readNativeTitles(doc,key));

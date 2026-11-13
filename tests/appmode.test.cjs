@@ -15,7 +15,7 @@ function harness(extra={}) {
   }
   doc={getElementById(){return null;},createElement:t=>new Element(t),listeners:{},removeEventListener(){},addEventListener(t,f){(this.listeners[t]??=[]).push(f);}};
   let serial=0;const saves=[],ctx={setTimeout:()=>1,clearTimeout(){},Element,document:doc,URL,location:{pathname:'/'},crypto:{randomUUID:()=>`pane-${++serial}`},innerWidth:1000,innerHeight:700,confirm:()=>true,CGWWCore:Core,sessionStorage:{setItem:(k,v)=>saves.push(JSON.parse(v))},chrome:{storage:{local:{set:async()=>{}}}},...extra};ctx.window=ctx;ctx.top=ctx;ctx.addEventListener=()=>{};ctx.removeEventListener=()=>{};doc.defaultView=ctx;
-  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={renamePaneTitle,recordStatus(fn){setStatus=fn;},mergeGroupPanes,expireBranch(p){branchActions.set(p,{expires:0});},prepareBranch,handleBranchClick,checkBranchLocation,finishBranch,importBranchUrl,useRealRender(){renderPane=realRender;},shadowFocus(el){shadow.activeElement=el;},readNativeTitles,syncNativeTitles,ready(){initialized=true;},foldAllPanes,refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
+  vm.createContext(ctx);vm.runInContext(source.replace('  void initialize();',`const realRender=renderPane;globalThis.api={renamePaneTitle,recordStatus(fn){setStatus=fn;},mergeGroupPanes,hasNativeBranchEvidence,expireBranch(p){branchActions.set(p,{expires:0});},prepareBranch,handleBranchClick,checkBranchLocation,finishBranch,importBranchUrl,useRealRender(){renderPane=realRender;},shadowFocus(el){shadow.activeElement=el;},readNativeTitles,syncNativeTitles,ready(){initialized=true;},foldAllPanes,refreshContentLayout,syncSplitPane,isSplitWide,toggleSplitWidth,resizeSplitWidth,paneSourceUrl,copyPaneUrl,openPaneNativeMenu,setPaneFolded,realRender,notice(){autoRestored=true;updateRecoveryUI();return restoreBadge;},newChatControl,handleNewChatClick,addNewChat,syncNewChatLocation,setEnabled,makeOverlay,closeOverlay,placeOverlay,syncOverlay,safeSave,resetPaneWidths,sidebarWidth,toggleSidebar,getPaneWidth,setSidebarWidth,makeSidebarResize,nativeCap(n){originalMaxWidth=n;contentWidthDetected=true;},
     init(panes=[]){state.panes=panes;panel=document.createElement('section');shadow=document.createElement('div');scroller=document.createElement('main');scroller.clientWidth=724;scroller.scrollWidth=2400;renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{root:document.createElement('article'),iframe:{draft:'keep',id:p.id}});};startMasterWatch=()=>{};stopMasterWatch=()=>{};ensureMasterSidebar=()=>{};pinMasterSidebar=()=>{};},
     enabled(v){state.enabled=v;},prefs(v){settings=Core.normalizeSettings(v);},state(){return state;},entries(){return paneNodes;},ui(){return {panel,overlay,overlayMenu,launcher,viewToggle,menuControls,sidebarHandle};},position(v){overlayPosition=v;},settings(){return settings;}};`),ctx);
   ctx.api.init();return {a:ctx.api,ctx,doc,Element,saves};
@@ -488,10 +488,10 @@ function branchEvent(label='Branch in new chat'){
 test('branch preparation is adjacent and idempotent; native action adopts new conversation without replacing original',()=>{
  const {h,p,pending,frame,original}=branchFixture();assert.equal(h.a.prepareBranch(p),pending);assert.equal(h.a.state().panes.length,2);
  assert.equal(h.a.handleBranchClick(branchEvent(),pending),false);
- frame.contentWindow.location.href=Core.ORIGIN+'/c/branched123';h.a.checkBranchLocation(pending);
+ frame.contentWindow.location.href=Core.ORIGIN+'/c/branched123';frame.contentDocument=nativeBranchEvidence(frame.contentWindow.location.href,pending.branchOrigin);h.a.checkBranchLocation(pending);
  assert.equal(pending.branchSource,undefined);assert.equal(pending.url,Core.ORIGIN+'/c/branched123');assert.equal(h.a.entries().get(pending.id).iframe,frame);
  assert.equal(h.a.entries().get(p.id).iframe,original);assert.equal(original.attachment,'untouched');assert.equal(p.draft,'keep');assert.equal(p.url,Core.ORIGIN+'/c/original123');
- assert.equal(h.a.entries().get(pending.id).branchButton.textContent,'分岐');
+ assert.equal(h.a.entries().get(pending.id).branchButton.textContent,'分岐準備');
 });
 test('unarmed or cancelled navigation is never treated as branch; authentication fails closed',()=>{
  const {h,pending,frame}=branchFixture();frame.contentWindow.location.href=Core.ORIGIN+'/c/unrelated123';h.a.checkBranchLocation(pending);assert.ok(pending.branchSource);
@@ -503,7 +503,7 @@ test('unarmed or cancelled navigation is never treated as branch; authentication
 test('branching original native menu is redirected to safe preparation, roots rejected, source navigation not overwritten',()=>{
  const {h,p,pending,frame,original}=branchFixture(),e=branchEvent();assert.equal(h.a.handleBranchClick(e,p),true);assert.ok(e.prevented);assert.equal(h.a.state().panes.length,2);
  assert.equal(h.a.prepareBranch({id:'draft',url:Core.ORIGIN+'/',newChat:true}),undefined);
- h.a.handleBranchClick(branchEvent(),pending);original.contentWindow.location.href=Core.ORIGIN+'/c/different123';frame.contentWindow.location.href=Core.ORIGIN+'/c/branched123';h.a.checkBranchLocation(pending);assert.ok(pending.branchSource);
+ h.a.handleBranchClick(branchEvent(),pending);original.contentWindow.location.href=Core.ORIGIN+'/c/different123';frame.contentWindow.location.href=Core.ORIGIN+'/c/branched123';frame.contentDocument=nativeBranchEvidence(frame.contentWindow.location.href,pending.branchOrigin);h.a.checkBranchLocation(pending);assert.ok(pending.branchSource);
 });
 test('pending branch and its drafts survive persistence without merging into original; no branch action is persisted',()=>{
  const {h,p,pending}=branchFixture();pending.draft='pending text';const snapshot=h.a.safeSave();let n=0;
@@ -511,7 +511,7 @@ test('pending branch and its drafts survive persistence without merging into ori
 });
 test('existing branch is reused and reordered, preparation input remains untouched',()=>{
  const {h,pending,frame}=branchFixture();const existing={id:'existing',url:Core.ORIGIN+'/c/branched123',title:'Existing',visible:true,width:480};h.a.state().panes.push(existing);h.a.realRender(existing);
- pending.draft='preserve preparation';h.a.handleBranchClick(branchEvent(),pending);frame.contentWindow.location.href=existing.url;h.a.checkBranchLocation(pending);
+ pending.draft='preserve preparation';h.a.handleBranchClick(branchEvent(),pending);frame.contentWindow.location.href=existing.url;frame.contentDocument=nativeBranchEvidence(existing.url,pending.branchOrigin);h.a.checkBranchLocation(pending);
  assert.equal(h.a.state().panes[1],existing);assert.equal(pending.draft,'preserve preparation');assert.ok(pending.branchSource);
 });
 
@@ -542,7 +542,7 @@ test('memory confirmation cancellation prevents branch preparation and manual UR
 test('observed native provisional branch URL is adopted without reload and later follows saved URL',()=>{
  const {h,pending,frame,original,p}=branchFixture();const provisional=Core.ORIGIN+'/c/local-chatgpt%3A1647ed5a-3d27-42bc-a768-552610a7bc2d';
  assert.equal(Core.chatUrl(provisional),provisional);assert.equal(Core.chatUrl(provisional+'-extra'),null);
- h.a.handleBranchClick(branchEvent('新しいチャットに分岐'),pending);frame.contentWindow.location.href=provisional;h.a.checkBranchLocation(pending);
+ h.a.handleBranchClick(branchEvent('新しいチャットに分岐'),pending);frame.contentWindow.location.href=provisional;frame.contentDocument=nativeBranchEvidence(provisional,pending.branchOrigin);h.a.checkBranchLocation(pending);
  assert.equal(pending.url,provisional);assert.equal(pending.branchSource,undefined);assert.equal(h.a.entries().get(p.id).iframe,original);
  frame.contentWindow.location.href=Core.ORIGIN+'/c/saved123';h.a.syncNewChatLocation(frame);assert.equal(pending.url,Core.ORIGIN+'/c/saved123');
 });
@@ -630,4 +630,72 @@ test('unsupported routes and unavailable frames never rename or silently create 
 test('blank title releases old alias without submitting a native rename',async()=>{
  const h=renameWorkspace(async()=>assert.fail('must not run')),p=h.panes[0],entry=h.a.entries().get('a');
  entry.title.value='  ';await h.a.renamePaneTitle(p,entry.title);assert.equal(p.titleMode,'native');assert.equal(p.title,'Old');
+});
+
+function nativeBranchEvidence(url,origin,options={}){
+ const root={getAttribute:()=>options.identity||decodeURIComponent(url.split('/').pop()),querySelectorAll:()=>[link]};
+ const footer={childNodes:[{nodeType:3,textContent:options.continuation??'からの続き'}],querySelectorAll:selector=>selector==='a[href]'?[link]:[{getAttribute:()=>'/assets/icons.svg#'+(options.icon||'codex-icon-arrow-branch-light-16')}]};
+ const link={href:options.source||origin,parentElement:footer,closest:()=>options.outside?{}:root};
+ return {location:{href:url},querySelectorAll:()=>options.duplicate?[root,root]:[root]};
+}
+test('native attribution recovers missed and expired branch clicks without reloading either document',()=>{
+ for(const expired of [false,true]){
+  const {h,p,pending,frame,original}=branchFixture();const url=Core.ORIGIN+'/c/local-chatgpt%3A11111111-1111-1111-1111-111111111111';
+  if(expired)h.a.expireBranch(pending);
+  frame.contentWindow.location.href=url;frame.contentDocument=nativeBranchEvidence(url,p.url);const doc=frame.contentDocument,src=frame.src;
+  pending.draft='branch draft';h.a.checkBranchLocation(pending);
+  assert.equal(pending.url,url);assert.equal(pending.branchSource,undefined);assert.equal(frame.src,src);assert.equal(frame.contentDocument,doc);
+  assert.equal(h.a.entries().get(p.id).iframe,original);assert.equal(original.attachment,'untouched');assert.equal(pending.draft,'branch draft');
+  const saved=h.a.safeSave();assert.equal(saved.panes[1].url,url);assert.equal(saved.panes[1].branchSource,undefined);
+  assert.equal(h.a.entries().get(pending.id).branchNotice.hidden,true);
+ }
+});
+test('native reconciliation rejects generic links, wrong source, wrong current container and ambiguous roots',()=>{
+ for(const options of [{source:Core.ORIGIN+'/c/unrelated123'},{identity:'other123'},{outside:true},{duplicate:true},{continuation:'some quote'},{icon:'different-icon'}]){
+  const {h,p,pending,frame}=branchFixture();const url=Core.ORIGIN+'/c/branched123';
+  frame.contentWindow.location.href=url;frame.contentDocument=nativeBranchEvidence(url,p.url,options);h.a.checkBranchLocation(pending);
+  assert.equal(pending.url,p.url);assert.ok(pending.branchSource);
+ }
+ const {h,p,pending,frame}=branchFixture();frame.contentDocument=nativeBranchEvidence(p.url,p.url);h.a.checkBranchLocation(pending);assert.ok(pending.branchSource);
+ assert.match(h.a.entries().get(pending.id).branchNotice.textContent,/分岐未作成/);
+});
+test('verified attribution still refuses source navigation or source removal',()=>{
+ for(const change of ['navigation','removed']){
+  const {h,p,pending,frame,original}=branchFixture();const url=Core.ORIGIN+'/c/branched123';
+  frame.contentWindow.location.href=url;frame.contentDocument=nativeBranchEvidence(url,p.url);
+  if(change==='navigation')original.contentWindow.location.href=Core.ORIGIN+'/c/another123';else h.a.state().panes.splice(0,1);
+  h.a.checkBranchLocation(pending);assert.ok(pending.branchSource);assert.equal(pending.url,p.url);
+ }
+});
+
+test('observed nested branch submenu stays native and new-chat leaf is intercepted and armed',()=>{
+ const {h,p,pending,frame,original}=branchFixture();
+ assert.equal(Core.isBranchLabel('会話を分岐する'),false);assert.equal(h.a.handleBranchClick(branchEvent('会話を分岐する'),p),false);assert.equal(Core.isBranchLabel('会話を分岐する設定'),false);
+ const sourceEvent=branchEvent('新しいチャットに分岐');assert.equal(h.a.handleBranchClick(sourceEvent,p),true);assert.ok(sourceEvent.prevented);
+ const prepEvent=branchEvent('新しいチャットに分岐');assert.equal(h.a.handleBranchClick(prepEvent,pending),false);assert.equal(prepEvent.prevented,undefined);
+ frame.contentWindow.location.href=Core.ORIGIN+'/c/branched123';frame.contentDocument=nativeBranchEvidence(frame.contentWindow.location.href,pending.branchOrigin);h.a.checkBranchLocation(pending);
+ assert.equal(pending.url,Core.ORIGIN+'/c/branched123');assert.equal(pending.branchSource,undefined);assert.equal(original.contentWindow.location.href,p.url);
+});
+test('periodic native sync promotes provisional branch URL to saved URL without a DOM mutation',()=>{
+ const {h,p,pending,frame}=branchFixture();const provisional=Core.ORIGIN+'/c/local-chatgpt%3A11111111-1111-1111-1111-111111111111';
+ h.a.handleBranchClick(branchEvent('新しいチャットに分岐'),pending);frame.contentWindow.location.href=provisional;frame.contentDocument=nativeBranchEvidence(provisional,pending.branchOrigin);h.a.checkBranchLocation(pending);
+ const src=frame.src;frame.contentWindow.location.href=Core.ORIGIN+'/c/savedbranch123';h.doc.querySelectorAll=()=>[];h.a.ready();h.a.syncNativeTitles();
+ assert.equal(pending.url,Core.ORIGIN+'/c/savedbranch123');assert.equal(frame.src,src);assert.equal(h.saves.at(-1).panes[1].url,pending.url);
+});
+
+test('armed but unrelated navigation is not accepted without native branch attribution',()=>{
+ const {h,p,pending,frame}=branchFixture();h.a.handleBranchClick(branchEvent(),pending);
+ frame.contentWindow.location.href=Core.ORIGIN+'/c/unrelated123';h.a.checkBranchLocation(pending);
+ assert.equal(pending.url,p.url);assert.ok(pending.branchSource);
+ assert.match(h.a.entries().get(pending.id).branchNotice.textContent,/確認中/);
+});
+test('inaccessible or non-conversation preparation does not claim the source URL is displayed',()=>{
+ const {h,pending,frame}=branchFixture();frame.contentWindow.location.href='https://auth.openai.com/';h.a.checkBranchLocation(pending);
+ assert.doesNotMatch(h.a.entries().get(pending.id).branchNotice.textContent,/同じURL/);
+ Object.defineProperty(frame,'contentWindow',{get(){throw Error('cross-origin')}});h.a.checkBranchLocation(pending);
+ assert.doesNotMatch(h.a.entries().get(pending.id).branchNotice.textContent,/同じURL/);
+});
+
+test('folded preparation notice is hidden with pane body controls',()=>{
+ assert.match(source,/\.pane\.folded \.branch-notice[^}]*display:none/);
 });

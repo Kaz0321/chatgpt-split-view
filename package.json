@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-split-view",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "private": true,
   "description": "ChatGPT conversations in resizable side-by-side columns; experimental Chrome extension",
   "license": "MIT",
