@@ -133,3 +133,12 @@ load・resize・既存DOM observerを100ms単位にまとめて再測定しま�
 - 確認していないDOMや言語では通知して止まること。日本語UIの構造を観測し、英語の既知ラベルも限定対応していますが、英語UIの実機受入は未実施です。
 
 本体メニューとダイアログを読み取り確認しただけでは、拡張による保存の動作確認を完了したことにはなりません。
+
+
+## v1.0.17 lazy restored panes
+
+`deferredRestoredPanes` is a runtime-only WeakSet of restored pane objects. Only folded server conversations without drafts/backups or pending branch dependencies enter it. `renderPane` checks it on both creation and existing-entry paths. Expansion while visible and enabled consumes eligibility immediately before the first frame build. Disabled or parked renders do not consume it. Loaded frames are never removed or replaced by this feature.
+
+Group restoration resolves all branch references before marking new panes. Existing live panes retain their documents and current drafts. Sources already present outside the incoming group are also rendered if a new pending branch requires them. History restoration and explicit `undoClose` remain eager, including a folded undo; this is a new document requested by the user, not an automatic workspace restore.
+
+`tests/lazy-restored.test.cjs` runs real initialization, rendering, frame creation and layout against synthetic DOM elements. It covers repeated renders, original-mode round trips, disabled unfold/refold, parked restoration, selection, reorder, aliases, excluded local work, source dependencies, group reuse, history and undo. Existing title, branch, draft and detached regressions must also pass. No live ChatGPT browser QA or memory measurements have been performed for this release. Test with disposable saved conversations before installing; do not reload a page containing an unsaved provisional branch to test this feature.

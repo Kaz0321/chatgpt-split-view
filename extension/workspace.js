@@ -19,6 +19,8 @@
   let state = { enabled: false, panes: [], activeId: null };
   let closedPanes = [];
   const paneNodes = new Map();
+  // Runtime-only: never persist loading state or discard an existing document.
+  const deferredRestoredPanes = new WeakSet();
   let host, shadow, panel, launcher, scroller, flashNode, infoButton;
   let draggedPaneId=null, statusTimer=null;
   let overlay, overlayMenu, viewToggle, menuControls, overlayPosition=null;
@@ -477,7 +479,15 @@
         if(backups.length)pane.draftBackups=[...new Set(backups)];
         if(saved.visible){pane.visible=true;pane.folded=false;}
       }else state.panes.push(pane);
+    }
+    // Resolve every branch source before deciding which new panes can wait.
+    for(const {pane,existing} of plans){
+      if(!existing)deferRestoredPane(pane);
       renderPane(pane);
+    }
+    // A group can reference a source already present but absent from its own list.
+    for(const pane of state.panes){
+      if(deferredRestoredPanes.has(pane)&&state.panes.some(other=>other.branchSource===pane.id))renderPane(pane);
     }
     const selected=plans[Core.restoredActiveIndex(snapshot,incoming)]?.pane;
     if(selected)state.activeId=selected.id;
@@ -728,7 +738,9 @@
   }
 
   function setPaneFolded(p,folded) {
-    p.folded=Boolean(folded);state.activeId=p.id;applyColumnWidths();markActive();safeSave();syncOverlay();
+    p.folded=Boolean(folded);
+    if(!p.folded&&deferredRestoredPanes.has(p))renderPane(p);
+    state.activeId=p.id;applyColumnWidths();markActive();safeSave();syncOverlay();
     const entry=paneNodes.get(p.id);
     (p.folded?entry?.restoreButton:entry?.foldButton)?.focus();
   }
@@ -1339,6 +1351,28 @@
     setStatus('指定した会話を元列の隣に配置しました。準備列は必要に応じて×で閉じてください。');
   }
 
+  function canDeferRestoredPane(p) {
+    // Only saved server conversations without pending local work qualify.
+    // A prepared branch needs its source's live document for identity checks.
+    return p.folded===true&&!p.newChat&&!p.branchSource&&!p.branchOrigin&&
+      Core.conversationKey(p.url)?.startsWith('chat:')&&!Core.isProvisionalChat(p.url)&&
+      !p.draft&&!(p.draftBackups||[]).some(Boolean)&&
+      !state.panes.some(other=>other.branchSource===p.id)&&!paneNodes.get(p.id)?.iframe;
+  }
+
+  function deferRestoredPane(p) {
+    if(canDeferRestoredPane(p))deferredRestoredPanes.add(p);
+  }
+
+  function shouldBuildPaneFrame(p) {
+    if(!p.url||!p.visible||!state.enabled)return false;
+    if(deferredRestoredPanes.has(p)){
+      if(canDeferRestoredPane(p))return false;
+      deferredRestoredPanes.delete(p);
+    }
+    return true;
+  }
+
   function renderPane(p) {
     let entry = paneNodes.get(p.id);
     if (entry) {
@@ -1347,7 +1381,7 @@
       entry.root.hidden = !p.visible;
       entry.root.style.width = `${getPaneWidth(p)}px`;
       if(!editingPaneTitle(entry)&&!titleRenames.has(Core.conversationKey(p.url)))entry.title.value = p.title;
-      if (!entry.iframe && p.url && p.visible && state.enabled) {
+      if (!entry.iframe && shouldBuildPaneFrame(p)) {
         // Filling an empty pane is safe. Existing loaded frames are never replaced.
         entry.iframe = buildFrame(p, entry.main, entry.foot);
       }
@@ -1391,7 +1425,7 @@
     const branchNotice=create('div','branch-notice');branchNotice.setAttribute('role','status');root.appendChild(branchNotice);
     const main = create('div', 'pane-main');
     let iframe;
-    if (p.url && state.enabled && p.visible) iframe = buildFrame(p, main, foot);
+    if (shouldBuildPaneFrame(p)) iframe = buildFrame(p, main, foot);
     else if (p.url) main.appendChild(create('div', 'empty', '列を表示すると、このチャットを読み込みます。'));
     else main.appendChild(create('div', 'empty', '左の履歴からチャットをクリックしてください。\n\n会話は常に右端へ追加します。'));
     root.appendChild(main);
@@ -1602,6 +1636,7 @@
         closedPanes = Core.normalizeSessionPanes(stored?.closedPanes).filter(p=>p.url).map(p=>({...p,id:newId()}));
         state.enabled = stored?.enabled === true;
         state.panes = Core.restoreWorkspacePanes(stored?.panes,newId);
+        state.panes.forEach(deferRestoredPane);
         state.activeId = state.panes[Core.restoredActiveIndex(stored,state.panes)]?.id || null;
         if(Number.isFinite(stored?.overlayPosition?.x)&&Number.isFinite(stored?.overlayPosition?.y))overlayPosition={x:stored.overlayPosition.x,y:stored.overlayPosition.y};
       }
