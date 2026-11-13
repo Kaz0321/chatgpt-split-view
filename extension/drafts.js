@@ -43,10 +43,20 @@
     finally{if(previous&&previous!==el)previous.focus?.();}
     return ok;
   }
-  function connect(doc,pane,save,report=()=>{}){
-    let done=false,conflict=false,restoring=false,current=null;
+  function connect(doc,pane,save,report=()=>{},getRouteKey=()=>null){
+    let done=false,conflict=false,restoring=false,current=null,ignored=null,routeKey=getRouteKey();
+    const navigation=()=>{
+      const next=getRouteKey();if(next===routeKey)return;
+      routeKey=next;
+      // Cached text must never be injected into a different route's composer.
+      // Ignore the old composer until it is replaced or the user edits it.
+      if(pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
+      delete pane.draft;ignored=composer(doc);current=ignored;done=true;conflict=false;
+    };
     const attempt=()=>{
-      const el=composer(doc);if(!el)return;
+      navigation();
+      const el=composer(doc);if(routeKey===undefined||!el||el===ignored)return;
+      ignored=null;
       if(current!==el){current=el;done=false;conflict=false;}
       if(done)return;
       if(!pane.draft){done=true;return;}
@@ -65,19 +75,20 @@
     const capture=()=>{
       attempt();
       const el=composer(doc);
-      if(!el||restoring||!done)return;
+      if(routeKey===undefined||!el||el===ignored||restoring||!done)return;
       if(conflict&&pane.draft&&text(el)!==pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
       pane.draft=text(el);save();
     };
     const input=event=>{
-      const el=composer(doc);if(!el||restoring||!(event.target===el||el.contains?.(event.target)))return;
+      navigation();
+      const el=composer(doc);if(routeKey===undefined||!el||restoring||!(event.target===el||el.contains?.(event.target)))return;
       if(conflict&&pane.draft&&text(el)!==pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
-      current=el;done=true;conflict=false;pane.draft=text(el);save();
+      ignored=null;current=el;done=true;conflict=false;pane.draft=text(el);save();
     };
     doc.addEventListener('input',input,true);
     const win=doc.defaultView;win.addEventListener('pagehide',capture);
     attempt();
-    return {attempt,capture,dispose(){doc.removeEventListener('input',input,true);win.removeEventListener('pagehide',capture);}};
+    return {attempt,capture,navigation,dispose(){doc.removeEventListener('input',input,true);win.removeEventListener('pagehide',capture);}};
   }
   const api={composer,text,restore,connect};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CGWWDrafts=api;

@@ -30,7 +30,8 @@
   let masterObserver=null,masterFrame=null,masterStyle=null,pinnedMaster=null,pendingOpener=null,masterSidebarHidden=false;
   let nativeMenuObserver=null,nativeMenuFrame=null,nativeMenuStyle=null;
   const nativeMenuMarks=new Map();
-  const ACTION_MENU='[role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [data-radix-menu-content], [aria-haspopup="menu"], [aria-haspopup="true"]';
+  let nativeModalOpen=false,nativePageRoute=null;
+  const ACTION_MENU='[role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [data-radix-menu-content], [aria-haspopup="menu"], [aria-haspopup="true"], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="option"], [aria-haspopup="dialog"], [aria-haspopup="listbox"], dialog';
   let originalMaxWidth = 1400; // outer pane cap, not the text/content cap
   let contentWidthDetected=false,contentLayoutTimer=null,contentLayoutObserver=null;
   let settingsInputs = null;
@@ -173,7 +174,7 @@
   }
 
   function pinMasterSidebar() {
-    if(!state.enabled){releaseMasterSidebar();return;}
+    if(!state.enabled||nativeModalOpen){releaseMasterSidebar();return;}
     if(!settings.sidebarVisible){
       masterSidebarHidden=true;
       if(!masterStyle){masterStyle=document.createElement('style');masterStyle.id='cgww-master-pin';document.documentElement.appendChild(masterStyle);}
@@ -235,15 +236,57 @@
     nativeMenuMarks.clear();
   }
 
+  function syncNativeModal() {
+    const open=Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], dialog[open]')).some(node=>{
+      if(node.hidden||node.closest('[hidden], [aria-hidden="true"], [data-state="closed"]')||!node.getClientRects().length)return false;
+      const css=getComputedStyle(node);return css.display!=='none'&&css.visibility!=='hidden';
+    });
+    if(open===nativeModalOpen)return;
+    nativeModalOpen=open;
+    // Yield our chrome, not the iframe documents. Keep native portals, backdrop,
+    // focus trap and nested dialogs together instead of guessing stacking roots.
+    if(open){host?.setAttribute('data-cgww-native-modal','');releaseMasterSidebar();}
+    else{host?.removeAttribute('data-cgww-native-modal');ensureMasterSidebar();}
+  }
+
+  function syncNativePageRoute() {
+    const href=location.href;
+    if(nativePageRoute===null){nativePageRoute=href;return;}
+    if(nativeModalOpen||href===nativePageRoute)return;
+    const previous=nativePageRoute;nativePageRoute=href;
+    // Only known identities are aliases. Mode-bearing home URLs must be shown.
+    const oldKey=Core.paneKey(previous),nextKey=Core.paneKey(href);
+    if(oldKey&&oldKey===nextKey)return;
+    const projectKey=value=>{
+      const route=Core.newChatUrl(value);if(!route)return null;
+      const match=route.match(/\/g\/(g-p-[0-9a-f]{32})(?:-[^/]*)?\/project$/i);
+      return match?match[1].toLowerCase():route;
+    };
+    if(projectKey(previous)&&projectKey(previous)===projectKey(href))return;
+    try{const a=new URL(previous),b=new URL(href);if(a.pathname===b.pathname&&a.search===b.search)return;}catch{return;}
+    if(!settings.interceptSidebar){setEnabled(false);return;}
+    // Native buttons (Settings, search results, project creation) can navigate
+    // without an anchor click. Reveal their destination instead of covering it.
+    const project=Core.newChatUrl(href);
+    if(project&&project!==Core.ORIGIN+'/'){
+      if(!addNewChat(project))setEnabled(false);return;
+    }
+    const chat=Core.paneUrl(href);
+    if(chat){if(!assignToActive(chat,'ChatGPT チャット'))setEnabled(false);return;}
+    setEnabled(false);
+  }
+
   function syncNativeMenus() {
     if(!state.enabled)return;
+    syncNativeModal();
+    syncNativePageRoute();if(!state.enabled)return;
     const desired=new Map();
     const mark=(node,attr)=>{if(!node)return;let attrs=desired.get(node);if(!attrs)desired.set(node,attrs=new Set());attrs.add(attr);};
     const layer=node=>{
       mark(node,'data-cgww-native-menu-layer');
       if(nativeMenuMarks.get(node)?.has('data-cgww-native-menu-position')||getComputedStyle(node).position==='static')mark(node,'data-cgww-native-menu-position');
     };
-    for(const menu of document.querySelectorAll('[role="menu"], [data-radix-menu-content]')) {
+    for(const menu of document.querySelectorAll('[role="menu"], [data-radix-menu-content], [role="listbox"]')) {
       if(menu.hidden||menu.getAttribute('data-state')==='closed'||!menu.getClientRects().length)continue;
       const css=getComputedStyle(menu);if(css.visibility==='hidden'||css.display==='none')continue;
       // Radix positions its portal wrapper, so elevate that stacking context too.
@@ -273,22 +316,24 @@
 
   function startNativeMenuWatch() {
     if(nativeMenuObserver||typeof MutationObserver!=='function')return;
+    nativePageRoute=location.href;
     nativeMenuStyle=document.createElement('style');nativeMenuStyle.id='cgww-native-menu-layers';
-    nativeMenuStyle.textContent='[data-cgww-native-menu-layer][data-cgww-native-menu-layer]{z-index:2147483647!important}[data-cgww-native-menu-position]{position:relative!important}[data-cgww-native-menu-overflow][data-cgww-native-menu-overflow]{overflow:visible!important}';
+    nativeMenuStyle.textContent='#cgww-host[data-cgww-native-modal]{display:none!important}[data-cgww-native-menu-layer][data-cgww-native-menu-layer]{z-index:2147483647!important}[data-cgww-native-menu-position]{position:relative!important}[data-cgww-native-menu-overflow][data-cgww-native-menu-overflow]{overflow:visible!important}';
     document.documentElement.appendChild(nativeMenuStyle);
     // Run in the mutation microtask: newly mounted submenus must be raised
     // before their first paint, not after a deferred animation frame.
     nativeMenuObserver=new MutationObserver(syncNativeMenus);
-    nativeMenuObserver.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','role','data-state','aria-expanded']});
-    window.addEventListener('resize',scheduleNativeMenus);document.addEventListener('transitionend',scheduleNativeMenus,true);
+    nativeMenuObserver.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','role','data-state','aria-expanded','aria-hidden','aria-modal','open']});
+    window.addEventListener('resize',scheduleNativeMenus);window.addEventListener('popstate',scheduleNativeMenus);window.addEventListener('hashchange',scheduleNativeMenus);document.addEventListener('transitionend',scheduleNativeMenus,true);
     syncNativeMenus();
   }
 
   function stopNativeMenuWatch() {
     nativeMenuObserver?.disconnect();nativeMenuObserver=null;
     if(nativeMenuFrame!==null){cancelAnimationFrame(nativeMenuFrame);nativeMenuFrame=null;}
-    window.removeEventListener('resize',scheduleNativeMenus);document.removeEventListener('transitionend',scheduleNativeMenus,true);
+    window.removeEventListener('resize',scheduleNativeMenus);window.removeEventListener('popstate',scheduleNativeMenus);window.removeEventListener('hashchange',scheduleNativeMenus);document.removeEventListener('transitionend',scheduleNativeMenus,true);
     clearNativeMenuMarks();nativeMenuStyle?.remove();nativeMenuStyle=null;
+    nativeModalOpen=false;nativePageRoute=null;host?.removeAttribute('data-cgww-native-modal');
   }
 
   function updateFallbackDock() {
@@ -333,6 +378,7 @@
   }
 
   function ensureMasterSidebar() {
+    if(nativeModalOpen){releaseMasterSidebar();return;}
     if(state.enabled&&!settings.sidebarVisible){pinMasterSidebar();updateGeometry();updateFallbackDock();return;}
     if(!state.enabled||!settings.keepMasterSidebar){releaseMasterSidebar();updateFallbackDock();return;}
     pinMasterSidebar();
@@ -764,7 +810,7 @@
       if(!doc||frame.contentWindow.location.origin!==Core.ORIGIN)return;
       if(frame._cgwwDraftDocument!==doc){
         frame._cgwwDraftRecovery?.dispose();frame._cgwwDraftDocument=doc;
-        frame._cgwwDraftRecovery=Drafts.connect(doc,frame._cgwwPane,()=>{safeSave();},text=>setStatus(text,true));
+        frame._cgwwDraftRecovery=Drafts.connect(doc,frame._cgwwPane,()=>{syncNewChatLocation(frame);safeSave();},text=>setStatus(text,true),()=>{const href=frame.contentWindow.location.href;return Core.paneKey(href)||(Core.newChatUrl(href)?'draft:'+Core.newChatUrl(href):undefined);});
       }
       frame._cgwwDraftRecovery.attempt();
     }catch{/* Cross-origin/login composers remain untouched. */}
@@ -965,8 +1011,20 @@
   function syncNewChatLocation(frame) {
     const p=frame._cgwwPane;
     if(p?.branchSource){checkBranchLocation(p);return;}
-    if(!p||(!p.newChat&&!Core.gptUrl(p.url)&&!Core.isProvisionalChat(p.url)))return;
-    try{const url=Core.paneUrl(frame.contentWindow.location.href);if(url&&url!==p.url){p.url=url;delete p.newChat;safeSave();}}catch{/* Same-origin only. */}
+    if(!p)return;
+    try{
+      const href=frame.contentWindow.location.href,fresh=Core.newChatUrl(href),url=Core.paneUrl(href)||fresh;if(!url||url===p.url)return;
+      const previous=Core.paneKey(p.url)||Core.newChatUrl(p.url),next=Core.paneKey(url)||fresh;
+      if(previous&&previous!==next){
+        if(frame._cgwwDraftRecovery?.navigation)frame._cgwwDraftRecovery.navigation();
+        else{
+          if(p.draft)p.draftBackups=[...new Set([...(p.draftBackups||[]),p.draft])];
+          delete p.draft;
+        }
+        if(Core.conversationKey(p.url)&&!Core.isProvisionalChat(p.url)){p.title='ChatGPT チャット';p.titleMode='native';}
+      }
+      p.url=url;if(fresh)p.newChat=true;else delete p.newChat;safeSave();
+    }catch{/* Same-origin only. */}
   }
 
   function newChatControl(event) {
@@ -976,6 +1034,8 @@
     if(!control||control.disabled||control.getAttribute?.('aria-disabled')==='true'||control.hasAttribute?.('download'))return null;
     const label=(control.getAttribute?.('aria-label')||control.getAttribute?.('title')||control.textContent||'').trim();
     const known=control.getAttribute?.('data-octane-navigation-item')==='new_chat'||['create-new-chat-button','new-chat-button'].includes(control.getAttribute?.('data-testid'));
+    // An explicit project page link opens that native page in its own pane.
+    if(control.tagName==='A'&&Core.newChatUrl(control.href)?.endsWith('/project'))return control;
     if(!known&&!/^(?:New chat|新しいチャット|新規チャット|.+ で新しいチャット|New chat in .+)$/i.test(label))return null;
     if(!newChatDestination(control))return null;
     return control;
@@ -1027,7 +1087,7 @@
     for(const p of state.panes){
       if(p.branchSource)continue;
       const frame=paneNodes.get(p.id)?.iframe;
-      try{const current=Core.paneUrl(frame?.contentWindow.location.href);if(current){p.url=current;delete p.newChat;}}catch{/* Same-origin only. */}
+      if(frame)syncNewChatLocation(frame);
       if(Core.paneKey(p.url)===key)return p;
     }
     return null;
@@ -1041,33 +1101,33 @@
 
   function addPane(rawUrl, title, forceNew = false) {
     const url = Core.paneUrl(rawUrl);
-    if (!url) { setStatus('ChatGPTの会話URL（/c/...）を指定してください。', true); return; }
+    if (!url) { setStatus('ChatGPTの会話URL（/c/...）を指定してください。', true); return false; }
     const exists = findConversation(url);
-    if (exists) { selectConversation(exists); return; }
+    if (exists) { selectConversation(exists); return true; }
     const active = state.panes.find(p => p.id === state.activeId);
     if (active && !active.url && !forceNew) {
       active.url = url;
       active.title = Core.normalizeTitle(title);active.titleMode='native';
       active.visible = true;
       renderPane(active); markActive(); applyColumnWidths(); safeSave();
-      return;
+      return true;
     }
-    if (state.panes.length >= 200) { setStatus('動作保護のため200列が上限です。', true); return; }
-    if (state.panes.filter(p => p.visible).length >= 8 && !confirm('さらに列を追加しますか？会話ごとにメモリを使用します。')) return;
+    if (state.panes.length >= 200) { setStatus('動作保護のため200列が上限です。', true); return false; }
+    if (state.panes.filter(p => p.visible).length >= 8 && !confirm('さらに列を追加しますか？会話ごとにメモリを使用します。')) return false;
     const p = { id: newId(), url, title: Core.normalizeTitle(title), titleMode:'native', width: settings.paneWidth, autoWidth:settings.nativePaneWidth, visible: true };
     state.panes.push(p);
     state.activeId = p.id;
     renderPane(p); markActive(); safeSave();
     applyColumnWidths(); updateFallbackDock();
-    scroller.scrollLeft = scroller.scrollWidth;
+    scroller.scrollLeft = scroller.scrollWidth;return true;
   }
 
   function assignToActive(url, title, forceNew = false) {
-    const existing=findConversation(url);if(existing){selectConversation(existing);return;}
+    const existing=findConversation(url);if(existing){selectConversation(existing);return true;}
     // Incoming conversations never replace a selected/left-hand document.
     const last=state.panes[state.panes.length-1];
-    if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.paneUrl(url);if(!last.url)return;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return;}
-    addPane(url,title,true);
+    if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.paneUrl(url);if(!last.url)return false;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return true;}
+    return addPane(url,title,true);
   }
 
   function addFromPrompt() {
@@ -1103,7 +1163,9 @@
     // Popup menus in the compact navigation rail may extend beyond the
     // user-selected overlay boundary. DOM context takes precedence over X.
     if (anchor.closest(SIDE_NAV + ', nav, aside, [role=menu]')) return true;
-    return x <= (isInsideFrame ? 110 : settings.sidebarWidth);
+    // Coordinates (especially keyboard-generated clientX=0) are not evidence
+    // of navigation. Unknown native/content links must keep their own handlers.
+    return false;
   }
 
   function handleHistoryClick(event) {
@@ -1594,7 +1656,7 @@
     nativeTitles.observe(document,readNativeTitles(document),true);
     for(const p of state.panes){
       const frame=paneNodes.get(p.id)?.iframe;
-      if(frame&&Core.isProvisionalChat(p.url))syncNewChatLocation(frame);
+      if(frame)syncNewChatLocation(frame);
       try{
         const doc=frame?.contentDocument,key=Core.conversationKey(p.url);
         if(doc&&key&&Core.conversationKey(doc.location.href)===key)nativeTitles.observe(doc,readNativeTitles(doc,key));

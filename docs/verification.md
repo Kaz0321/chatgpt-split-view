@@ -1,3 +1,7 @@
+## v1.0.18 native UI compatibility
+
+See [the operation-by-operation audit](native-operations-audit.md). Candidate Node regressions and the local Chrome modal fixture pass. Existing-runtime ChatGPT checks confirmed the modal/page occlusion bugs; no candidate install or service-side creation/save E2E was performed. Do not reload a workspace holding unsaved provisional branches merely to test this candidate.
+
 ## v1.0.16 分岐URL確認（2026-11-13）
 
 自動確定の対応範囲は、確認済みの日本語UIに限ります。現在の会話内にある分岐アイコン、元会話へのリンク、文字列「からの続き」を照合します。英語の「Branch in new chat」を認識しても、他言語や本体DOMの変更でこの証拠を確認できなければ自動確定しません。その場合は、本体で作成した分岐先のURLを「分岐先URL」から手動で取り込んでください。仮URLを別の列へ新規に読み込むことはできないため、保存済みURLになってから取り込むか、すでに表示中の同じ仮URLの列を再利用してください。

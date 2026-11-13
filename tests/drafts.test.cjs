@@ -23,3 +23,38 @@ test('unsupported composer restoration retains saved text separately from empty 
  const el={tagName:'TEXTAREA',value:''},doc={querySelector:()=>el,addEventListener(){},removeEventListener(){},defaultView:{HTMLTextAreaElement:{prototype:{}},addEventListener(){},removeEventListener(){}}};el.ownerDocument=doc;
  const pane={draft:'saved'};const recovery=D.connect(doc,pane,()=>{});assert.equal(pane.draft,'');assert.deepEqual(pane.draftBackups,['saved']);recovery.capture();assert.deepEqual(pane.draftBackups,['saved']);
 });
+
+test('saved route changes back up text and never restore or capture the previous composer into a new conversation',()=>{
+ const h=fixture('old draft');h.recovery.dispose();let key='chat:first',current=h.el;
+ h.doc.querySelector=()=>current;
+ const r=D.connect(h.doc,h.pane,()=>{},()=>{},()=>key);
+ key='chat:second';r.navigation();r.attempt();r.capture();
+ assert.equal(h.pane.draft,undefined);assert.deepEqual(h.pane.draftBackups,['old draft']);assert.equal(h.el.value,'old draft');
+ const replacement=Object.create(Object.getPrototypeOf(h.el));Object.assign(replacement,{tagName:'TEXTAREA',ownerDocument:h.doc,value:'',dispatchEvent(){}});current=replacement;
+ r.attempt();assert.equal(replacement.value,'');r.capture();assert.equal(h.pane.draft,'');
+ replacement.value='second draft';h.events.input({target:replacement});assert.equal(h.pane.draft,'second draft');
+ key='chat:third';r.navigation();replacement.value='third draft';h.events.input({target:replacement});assert.equal(h.pane.draft,'third draft');assert.deepEqual(h.pane.draftBackups,['old draft','second draft']);
+});
+test('route promotion preserves live composer text as backup, never injecting it into a replacement',()=>{
+ const h=fixture('draft');h.recovery.dispose();let key='draft:home';
+ const r=D.connect(h.doc,h.pane,()=>{},()=>{},()=>key);key='chat:saved';r.attempt();r.capture();assert.equal(h.pane.draft,undefined);assert.equal(h.el.value,'draft');assert.deepEqual(h.pane.draftBackups,['draft']);
+ h.el.value='new input';h.events.input({target:h.el});r.attempt();assert.equal(h.pane.draft,'new input');
+});
+test('unsupported native routes cannot capture input under a prior conversation identity',()=>{
+ const h=fixture('old');h.recovery.dispose();let key='chat:fixture';const r=D.connect(h.doc,h.pane,()=>{},()=>{},()=>key);
+ key=undefined;h.el.value='settings input';h.events.input({target:h.el});r.capture();assert.equal(h.pane.draft,undefined);assert.deepEqual(h.pane.draftBackups,['old']);
+ key=null;h.el.value='new chat draft';h.events.input({target:h.el});assert.equal(h.pane.draft,'new chat draft');
+});
+
+test('different fresh project routes cannot inject cached text into an empty replacement composer',()=>{
+ const h=fixture('project A draft');h.recovery.dispose();let key='draft:projectA',current=h.el;h.doc.querySelector=()=>current;
+ const r=D.connect(h.doc,h.pane,()=>{},()=>{},()=>key);key='draft:projectB';
+ current=Object.create(Object.getPrototypeOf(h.el));Object.assign(current,{tagName:'TEXTAREA',ownerDocument:h.doc,value:'',dispatchEvent(){}});
+ r.attempt();assert.equal(current.value,'');assert.equal(h.pane.draft,undefined);assert.deepEqual(h.pane.draftBackups,['project A draft']);
+});
+
+test('initial unsupported document cannot carry a cached draft into a later supported route',()=>{
+ const h=fixture();h.recovery.dispose();h.pane.draft='cached A';let key=undefined;
+ const r=D.connect(h.doc,h.pane,()=>{},()=>{},()=>key);assert.equal(h.el.value,'');key='chat:B';r.attempt();r.capture();
+ assert.equal(h.el.value,'');assert.equal(h.pane.draft,undefined);assert.deepEqual(h.pane.draftBackups,['cached A']);
+});

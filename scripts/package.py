@@ -17,7 +17,7 @@ RUNTIME_FILES = (
 REPO_FILES = (
     'README.md', 'LICENSE', 'SECURITY.md',
     'docs/privacy.md', 'docs/changelog.md',
-    'docs/verification.md', 'docs/development.md',
+    'docs/verification.md', 'docs/development.md', 'docs/native-operations-audit.md',
     'docs/readme-history.md', 'docs/verification-tab-groups.md',
     'docs/candidate-install.md', 'docs/sidebar-restore-fix.md', 'docs/split-panel-width.md', 'docs/release-1.0.0.md', 'docs/readme-v0101.md',
 )

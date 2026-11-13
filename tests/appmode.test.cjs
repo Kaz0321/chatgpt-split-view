@@ -699,3 +699,24 @@ test('inaccessible or non-conversation preparation does not claim the source URL
 test('folded preparation notice is hidden with pane body controls',()=>{
  assert.match(source,/\.pane\.folded \.branch-notice[^}]*display:none/);
 });
+
+test('saved native navigation adopts live URL without replacing documents or restoring prior draft',()=>{
+ const h=harness();const pane={id:'fixture-pane',url:Core.ORIGIN+'/c/fixturefirst',title:'Old alias',titleMode:'local',draft:'old draft',width:480};
+ const doc={draft:'native new draft'},frame={_cgwwPane:pane,src:pane.url,contentDocument:doc,contentWindow:{location:{href:Core.ORIGIN+'/c/fixturesecond'}}};
+ h.a.syncNewChatLocation(frame);assert.equal(pane.url,Core.ORIGIN+'/c/fixturesecond');assert.equal(pane.draft,undefined);assert.deepEqual(Array.from(pane.draftBackups),['old draft']);assert.equal(pane.titleMode,'native');assert.equal(frame.contentDocument,doc);assert.equal(frame.src,Core.ORIGIN+'/c/fixturefirst');assert.equal(pane.width,480);
+ h.a.syncNewChatLocation(frame);assert.deepEqual(Array.from(pane.draftBackups),['old draft']);
+ frame.contentWindow.location.href='https://example.com/c/fixturethird';h.a.syncNewChatLocation(frame);assert.equal(pane.url,Core.ORIGIN+'/c/fixturesecond');
+});
+
+test('URL metadata synchronization does not clear a destination draft already captured by recovery',()=>{
+ const h=harness();const p={url:Core.ORIGIN+'/c/fixturefirst',draft:'new destination input',draftBackups:['old input']};let calls=0;
+ const frame={_cgwwPane:p,contentWindow:{location:{href:Core.ORIGIN+'/c/fixturesecond'}},_cgwwDraftRecovery:{navigation(){calls++;}}};
+ h.a.syncNewChatLocation(frame);assert.equal(calls,1);assert.equal(p.draft,'new destination input');assert.deepEqual(p.draftBackups,['old input']);
+});
+
+test('saved pane native home/project navigation adopts independent draft route without replacing frame',()=>{
+ for(const route of ['/', '/g/g-p-fixture/project']){
+  const h=harness(),p={url:Core.ORIGIN+'/c/fixturefirst',draft:'old'},frame={_cgwwPane:p,src:Core.ORIGIN+'/c/fixturefirst',contentWindow:{location:{href:Core.ORIGIN+route}}};
+  h.a.syncNewChatLocation(frame);assert.equal(p.url,Core.ORIGIN+route);assert.equal(p.newChat,true);assert.equal(p.draft,undefined);assert.deepEqual(Array.from(p.draftBackups),['old']);assert.equal(frame.src,Core.ORIGIN+'/c/fixturefirst');
+ }
+});

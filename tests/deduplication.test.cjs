@@ -4,7 +4,7 @@ const base=C.ORIGIN;
 function harness(panes){
  let next=0;const context={URL,console,crypto:{randomUUID:()=>`new-${++next}`},document:{getElementById(){return null;}},CGWWCore:C,confirm(){throw Error('Existing conversation must not prompt');}};
  context.window=context;context.top=context;vm.createContext(context);
- vm.runInContext(fs.readFileSync(require.resolve('../extension/workspace.js'),'utf8').replace('  void initialize();',`globalThis.api={mergeGroupPanes,selectConversation,addPane,assignToActive,restoreClosedPane,findConversation,get:()=>state,entries:()=>paneNodes,history:()=>closedPanes,init(panes){state={enabled:true,panes,activeId:null};scroller={scrollWidth:1000};for(const p of panes)paneNodes.set(p.id,{iframe:{draft:'keep'},root:{scrollIntoView(){}}});renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{iframe:{},root:{}})};syncPaneOrder=markActive=applyColumnWidths=safeSave=syncOverlay=updateFallbackDock=setStatus=()=>{};}};`),context);
+ vm.runInContext(fs.readFileSync(require.resolve('../extension/workspace.js'),'utf8').replace('  void initialize();',`globalThis.api={mergeGroupPanes,selectConversation,addPane,assignToActive,restoreClosedPane,findConversation,get:()=>state,entries:()=>paneNodes,history:()=>closedPanes,init(panes){state={enabled:true,panes,activeId:null};scroller={scrollWidth:1000};for(const p of panes)paneNodes.set(p.id,{iframe:{draft:'keep',_cgwwPane:p},root:{scrollIntoView(){}}});renderPane=p=>{if(!paneNodes.has(p.id))paneNodes.set(p.id,{iframe:{_cgwwPane:p},root:{}})};syncPaneOrder=markActive=applyColumnWidths=safeSave=syncOverlay=updateFallbackDock=setStatus=()=>{};}};`),context);
  context.api.init(panes);return context.api;
 }
 test('conversation identity handles aliases, query, trailing slash and UUID case but not distinct or local threads',()=>{
@@ -101,4 +101,10 @@ test('legacy parked group panes remain recoverable without creating new parked d
  a.mergeGroupPanes(group);a.mergeGroupPanes(group);assert.equal(a.get().panes.length,1);
  const p=a.get().panes[0];assert.equal(p.visible,false);assert.equal(p.draft,'legacy draft');
  a.selectConversation(p);assert.equal(p.visible,true);assert.equal(p.folded,false);assert.equal(p.draft,'legacy draft');
+});
+
+test('incoming deduplication adopts native saved route through draft ownership guard',()=>{
+ const p={id:'fixture',url:base+'/c/fixtureAAA',draft:'draft A'},a=harness([p]),frame=a.entries().get(p.id).iframe;
+ frame.contentWindow={location:{href:base+'/c/fixtureBBB'}};a.assignToActive('/c/fixtureBBB','B');
+ assert.equal(a.get().panes.length,1);assert.equal(p.url,base+'/c/fixtureBBB');assert.equal(p.draft,undefined);assert.deepEqual(Array.from(p.draftBackups),['draft A']);
 });

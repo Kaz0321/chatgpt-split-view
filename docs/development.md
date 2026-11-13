@@ -142,3 +142,12 @@ load・resize・既存DOM observerを100ms単位にまとめて再測定しま�
 Group restoration resolves all branch references before marking new panes. Existing live panes retain their documents and current drafts. Sources already present outside the incoming group are also rendered if a new pending branch requires them. History restoration and explicit `undoClose` remain eager, including a folded undo; this is a new document requested by the user, not an automatic workspace restore.
 
 `tests/lazy-restored.test.cjs` runs real initialization, rendering, frame creation and layout against synthetic DOM elements. It covers repeated renders, original-mode round trips, disabled unfold/refold, parked restoration, selection, reorder, aliases, excluded local work, source dependencies, group reuse, history and undo. Existing title, branch, draft and detached regressions must also pass. No live ChatGPT browser QA or memory measurements have been performed for this release. Test with disposable saved conversations before installing; do not reload a page containing an unsaved provisional branch to test this feature.
+
+
+## v1.0.18 native compatibility
+
+`syncNativeModal` temporarily hides extension chrome and releases the pinned sidebar while a native dialog is visible. It neither calls setEnabled nor recreates frames. `syncNativePageRoute` follows actual parent navigation from native commands: supported project/chat destinations become panes, other pages become original mode. Settings that disable interception are respected; cancelled/limited additions after native navigation reveal the original destination.
+
+`syncNewChatLocation` now follows ordinary saved-pane navigation too, while pending branches retain the separate evidence-required path. Draft recovery tracks a live route key, keeps prior cached text as backup on every distinct route (including fresh/provisional promotion) and suppresses stale-composer capture until replacement/input. Its navigation guard is idempotent, so a destination draft captured before metadata synchronization is not cleared again. Unknown routes cannot capture composer text under an old conversation. No iframe src or document is replaced by these metadata updates.
+
+Run full `npm run verify`, then Windows `python scripts/package.py` and `python scripts/package.py --check`. See [native operation audit and browser fixture](native-operations-audit.md) for rendering checks and remaining service-side acceptance.

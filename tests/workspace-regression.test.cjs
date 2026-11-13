@@ -58,11 +58,11 @@ test('iframe-realm history links are detected without parent instanceof rejectio
 test('embedded _blank chat link is intercepted rather than opening a browser tab/window',()=>{
   const {hooks}=harness();
   let handler;
-  const doc={addEventListener(type,callback){assert.equal(type,'click'); handler=callback;}};
+  const listeners={};const doc={addEventListener(type,callback){listeners[type]=callback;if(type==='click')handler=callback;},removeEventListener(type){delete listeners[type];}};
   const frame={contentDocument:doc,contentWindow:{location:{origin:C.ORIGIN}}};
   hooks.setEnabled(true);
   const assignments=hooks.captureAssignments();
-  hooks.attachEmbeddedNavigation(frame,{id:'pane-one'});
+  hooks.attachEmbeddedNavigation(frame,{id:'pane-one'});assert.equal(typeof listeners.keydown,'function');
   const realm=vm.createContext({});
   vm.runInContext(`class Element {}; this.Element=Element; this.anchor=new Element();
     anchor.ownerDocument={defaultView:{Element}};
