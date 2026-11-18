@@ -720,3 +720,18 @@ test('saved pane native home/project navigation adopts independent draft route w
   h.a.syncNewChatLocation(frame);assert.equal(p.url,Core.ORIGIN+route);assert.equal(p.newChat,true);assert.equal(p.draft,undefined);assert.deepEqual(Array.from(p.draftBackups),['old']);assert.equal(frame.src,Core.ORIGIN+'/c/fixturefirst');
  }
 });
+
+test('tab list exposes multiline backups read-only and copy never changes current or other composer',async()=>{
+ const writes=[],h=harness({navigator:{clipboard:{writeText:async text=>writes.push(text)}}});
+ const p={id:'a',title:'A',url:Core.ORIGIN+'/c/fixture001',draft:'current',draftBackups:['one\ntwo','older'],visible:true},q={id:'b',title:'B',draft:'other',visible:true};
+ h.a.init([p,q]);h.a.makeOverlay();const rows=h.a.ui().menuControls.parkedList.children,details=rows[0].children[3];assert.equal(rows[1].children.length,3);
+ const [summary,note,choice,text,copy]=details.children;assert.equal(text.readOnly,true);assert.equal(text.value,'one\ntwo');assert.equal(p.draft,'current');assert.equal(writes.length,0);
+ await copy.listeners.click[0]();assert.deepEqual(writes,['one\ntwo']);choice.value='1';choice.emit('change');await copy.listeners.click[0]();assert.deepEqual(writes,['one\ntwo','older']);assert.equal(q.draft,'other');assert.equal(p.draft,'current');assert.deepEqual(p.draftBackups,['one\ntwo','older']);
+ h.a.state().panes.splice(0,1);await copy.listeners.click[0]();assert.equal(writes.length,2);
+});
+test('persisted or group-restored backups remain accessible with clipboard failure and without automatic insertion',async()=>{
+ const h=harness({navigator:{clipboard:{writeText:async()=>{throw Error('denied')}}}}),p={id:'a',title:'A',url:Core.ORIGIN+'/c/fixture001',draft:'new input',draftBackups:['recover\nme'],visible:true,folded:true};
+ h.a.init([p]);const snapshot=h.a.safeSave();const restored=Core.restoreWorkspacePanes(JSON.parse(JSON.stringify(snapshot)).panes,()=> 'restored');h.a.init(restored);h.a.realRender(restored[0]);h.a.makeOverlay();
+ let details=h.a.ui().menuControls.parkedList.children[0].children[3];let selected=false;details.children[3].select=()=>{selected=true;};await details.children[4].listeners.click[0]();assert.equal(selected,true);assert.equal(restored[0].draft,'new input');
+ h.a.mergeGroupPanes({panes:[{...p,draftBackups:['from group']}]});h.a.syncOverlay();details=h.a.ui().menuControls.parkedList.children[0].children[3];assert.ok(restored[0].draftBackups.includes('from group'));assert.equal(details.children[2].children.length,2);assert.equal(restored[0].draft,'new input');
+});

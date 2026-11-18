@@ -59,3 +59,5 @@ Conflicting draft alternatives are stored locally alongside the current draft un
 ## Window handoffs
 
 v0.8.10 stores source workspace ID, conversation URL/title and a random handoff marker in extension-local storage. Current browser tab IDs use session storage. No draft, attachment or transcript is sent between windows. The URL fragment and per-tab session storage identify the detached document; clearing these can remove its integration toolbar association. Handoff records are bounded to 200. No new permissions or device sync are added.
+
+退避テキストはタブ一覧の本人によるコピー操作でのみクリップボードへ書き出します。コピーに失敗した場合は読み取り専用欄から手動で取り出せます。会話への自動再送や外部サービスへの転送は行いません。

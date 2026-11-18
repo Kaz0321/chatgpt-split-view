@@ -748,12 +748,32 @@
       const status=create('span','tab-state sr-only',`${!p.visible?'退避中':p.folded?'折りたたみ中':'表示中'}${p.id===state.activeId?'・選択中':''}${!state.enabled?'・分割表示休止中':''}`);
       const collapsed=!p.visible||p.folded;
       const restore=button(collapsed?'□':'−',`${p.title} を${collapsed?'復元':'折りたたむ'}`,()=>{if(collapsed){selectConversation(p);paneNodes.get(p.id)?.foldButton?.focus();}else setPaneFolded(p,true);},'tab-toggle');restore.setAttribute('aria-label',`${p.title} を${collapsed?'復元':'折りたたむ'}`);restore.setAttribute('aria-expanded',String(!collapsed));restore.disabled=!state.enabled;
-      row.append(name,status,restore);menuControls.parkedList.appendChild(row);
+      row.append(name,status,restore);appendDraftRecovery(row,p);menuControls.parkedList.appendChild(row);
     }
     if(!parked.length)menuControls.parkedList.appendChild(create('p','','タブはありません。'));
     if(menuControls.historyEntry)menuControls.historyEntry.textContent=`閉じた履歴 (${closedPanes.length})`;
     renderClosedHistory();
     placeOverlay();
+  }
+
+  function appendDraftRecovery(row,p){
+    const backups=(p.draftBackups||[]).filter(value=>typeof value==='string'&&value);
+    if(!backups.length)return;
+    const details=create('details','draft-recovery');details.style.gridColumn='1 / -1';details.style.minWidth='0';
+    details.appendChild(create('summary','',`退避テキスト (${backups.length}件)`));
+    details.appendChild(create('p','','送信済みの文面が含まれる場合があります。必要な文字だけコピーして手動で貼り付けてください。入力欄への挿入・送信は行いません。'));
+    const choice=create('select');choice.setAttribute('aria-label',`${p.title} の退避テキストを選択`);
+    backups.forEach((text,index)=>{const option=create('option','',`${index+1} (${text.length}文字)`);option.value=String(index);choice.appendChild(option);});choice.value='0';
+    const copyText=create('textarea');copyText.readOnly=true;copyText.rows=4;copyText.style.width='100%';copyText.style.boxSizing='border-box';copyText.setAttribute('aria-label',`${p.title} の退避テキスト（コピー用・読み取り専用）`);copyText.value=backups[0];
+    choice.addEventListener('change',()=>{copyText.value=backups[Number(choice.value)]||'';});
+    const status=create('p');status.setAttribute('role','status');
+    const copy=button('コピー','選択した退避テキストをコピー',async()=>{
+      const value=backups[Number(choice.value)];
+      if(!state.panes.includes(p)||!value||!(p.draftBackups||[]).includes(value)){status.textContent='列の状態が変わりました。メニューを開き直してください。';return;}
+      try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(value);status.textContent='コピーしました。会話の入力欄は変更していません。';}
+      catch{copyText.focus();copyText.select?.();status.textContent='コピー用の文字を選択しました。Ctrl+Cでコピーしてください。';}
+    });
+    details.append(choice,copyText,copy,status);row.appendChild(details);
   }
 
   function resetPaneWidths() {

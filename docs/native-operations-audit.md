@@ -13,7 +13,7 @@ Date: 2026-11-13. Final automated run: `npm run verify`, 346/346 tests; determin
 
 After staging the candidate files, a new disposable Chrome tab opened ChatGPT for a safe service-side check. That tab still loaded the old runtime: the candidate's `#cgww-host[data-cgww-native-modal]` display:none stylesheet signature was absent. Only the disposable test tab was closed. The existing workspace holding unsaved work was not touched, and no extension/global reload or service-side data change was performed.
 
-Candidate ChatGPT E2E remains blocked until the candidate runtime can be safely activated. Files staged on disk are not evidence that Chrome is executing them. The 346 automated tests and local Chrome fixture remain valid candidate checks, but neither is service E2E. Publication remains on hold pending the promised live candidate testing.
+Candidate ChatGPT E2E remains blocked until the candidate runtime can be safely activated. Files staged on disk are not evidence that Chrome is executing them. The 346 automated tests and local Chrome fixture remain valid candidate checks, but neither is service E2E. Live candidate testing remains outstanding. On 2026-11-18 the user authorized merging this candidate together with the draft-recovery fixes; that authorization does not change the unverified service-E2E status.
 
 ## Coverage matrix
 

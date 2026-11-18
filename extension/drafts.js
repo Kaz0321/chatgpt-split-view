@@ -57,7 +57,18 @@
       navigation();
       const el=composer(doc);if(routeKey===undefined||!el||el===ignored)return;
       ignored=null;
-      if(current!==el){current=el;done=false;conflict=false;}
+      if(current!==el){
+        if(current&&done){
+          // A mounted editor being replaced is not a document restore. The host
+          // may have submitted/cleared it without an input event. Never replay
+          // cached text into the replacement or infer successful submission.
+          const value=text(el),uncertain=[pane.draft,text(current)]
+            .filter(valueBefore=>typeof valueBefore==='string'&&valueBefore&&valueBefore!==value);
+          if(uncertain.length)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),...uncertain])];
+          current=el;conflict=false;pane.draft=value;save();return;
+        }
+        current=el;done=false;conflict=false;
+      }
       if(done)return;
       if(!pane.draft){done=true;return;}
       if(text(el)){
@@ -67,8 +78,8 @@
         return;
       }
       restoring=true;
-      try{done=restore(el,pane.draft);if(!done){done=true;conflict=true;report('この入力欄へ自動復元できません。保存した下書きは設定メニューで確認できます。');}}
-      catch{done=true;conflict=true;report('下書きの自動復元に失敗しました。保存した下書きは設定メニューで確認できます。');}
+      try{done=restore(el,pane.draft);if(!done){done=true;conflict=true;report('この入力欄へ自動復元できません。保存した下書きはタブ一覧の「退避テキスト」から取り出せます。');}}
+      catch{done=true;conflict=true;report('下書きの自動復元に失敗しました。保存した下書きはタブ一覧の「退避テキスト」から取り出せます。');}
       finally{restoring=false;}
       if(conflict){pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft].filter(Boolean))];pane.draft=text(el);save();}
     };
