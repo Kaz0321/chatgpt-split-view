@@ -13,7 +13,7 @@ test('pane controls share a 24px centered target and consistent neutral styling'
 test('monochrome close and editable title have explicit accessible names', () => {
   assert.ok(source.includes("const closeButton=button('×'"));
   assert.ok(source.includes("closeButton.setAttribute('aria-label','この列を閉じる')"));
-  assert.ok(source.includes("title.setAttribute('aria-label', '列の表示名')"));
+  assert.ok(source.includes("title.setAttribute('aria-label', 'ChatGPTの会話名')"));
   assert.ok(!source.includes('❌'));
   assert.match(source, /button:focus-visible,input:focus-visible\{outline:2px solid/);
 });

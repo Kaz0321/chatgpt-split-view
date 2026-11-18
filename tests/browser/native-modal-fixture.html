@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Split View native modal regression fixture</title>
+<style>body{font:16px system-ui;margin:24px;background:#fafafa}#results{position:fixed;right:20px;bottom:20px;z-index:2147483647;background:white;color:#133;padding:20px;border:2px solid #396;max-width:440px}button{font:inherit;padding:10px}.fixture-modal{position:fixed;inset:20% 25%;background:white;padding:30px;border:3px solid #456;z-index:50}.fixture-backdrop{position:fixed;inset:0;background:#0007;z-index:49}</style>
+<h1>Native page background</h1>
+<p>This local fixture checks actual browser CSS and iframe identity, not ChatGPT E2E.</p>
+<div id="results">Running…</div>
+<script src="../../extension/core.js"></script>
+<script>
+(async()=>{
+ const source=await (await fetch('../../extension/workspace.js')).text();
+ (0,eval)(source.replace('  void initialize();',`globalThis.fixtureHooks={
+ setup(element){host=element;state.enabled=true;nativePageRoute=location.href;releaseMasterSidebar=()=>{};ensureMasterSidebar=()=>{};},startNativeMenuWatch,stopNativeMenuWatch,syncNativeMenus};`));
+ const host=document.createElement('div');host.id='cgww-host';document.documentElement.append(host);
+ const shadow=host.attachShadow({mode:'open'});shadow.innerHTML='<style>:host{display:contents}.board{position:fixed;inset:0;background:#dde9f5;z-index:2147483645;padding:40px}iframe{width:80%;height:200px}</style><div class="board"><h2>Workspace fixture</h2><iframe title="Preserved draft"></iframe><p>The same iframe must survive native modal open/close.</p></div>';
+ const frame=shadow.querySelector('iframe');frame.srcdoc='<input value="fixture unsent draft"><p>Live iframe document</p>';
+ await new Promise(resolve=>frame.onload=resolve);
+ const doc=frame.contentDocument,input=doc.querySelector('input');input.value='fixture draft preserved';
+ fixtureHooks.setup(host);fixtureHooks.startNativeMenuWatch();
+ const results=[];const check=(condition,label)=>{if(!condition)throw Error(label);results.push('PASS: '+label);};
+ const portal=document.createElement('div');portal.style.cssText='position:fixed;inset:0;z-index:50;pointer-events:none;contain:layout';portal.innerHTML='<div class="fixture-backdrop"></div><div role="dialog" aria-modal="true" class="fixture-modal" style="pointer-events:auto"><h2>Create project (fixture only)</h2><input placeholder="Project name"><button id="close-modal">Cancel</button></div>';
+ document.body.append(portal);fixtureHooks.syncNativeMenus();
+ check(getComputedStyle(host).display==='none','candidate chrome yields to native dialog');
+ const dialog=portal.querySelector('[role=dialog]');const r=dialog.getBoundingClientRect();check(dialog.contains(document.elementFromPoint(r.left+15,r.top+15)),'native dialog is the hit target above board');
+ portal.remove();fixtureHooks.syncNativeMenus();
+ check(getComputedStyle(host).display!=='none','workspace returns on dismissal');check(frame.contentDocument===doc&&doc.querySelector('input')===input&&input.value==='fixture draft preserved','iframe, composer and draft identity preserved');
+ document.body.append(portal);fixtureHooks.syncNativeMenus();portal.remove();fixtureHooks.syncNativeMenus();
+ check(frame.contentDocument===doc,'repeat open/close does not replace iframe document');
+ document.querySelector('#results').textContent=results.join('\n');document.querySelector('#results').style.whiteSpace='pre-line';
+ const open=document.createElement('button');open.textContent='Open fixture modal';document.querySelector('#results').append(document.createElement('br'),open);
+ open.onclick=()=>{document.body.append(portal);fixtureHooks.syncNativeMenus();};portal.querySelector('#close-modal').onclick=()=>{portal.remove();fixtureHooks.syncNativeMenus();};
+})().catch(error=>{document.querySelector('#results').textContent='FAIL: '+error.stack;document.querySelector('#results').style.borderColor='red';});
+</script>

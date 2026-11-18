@@ -19,6 +19,8 @@
   let state = { enabled: false, panes: [], activeId: null };
   let closedPanes = [];
   const paneNodes = new Map();
+  // Runtime-only: never persist loading state or discard an existing document.
+  const deferredRestoredPanes = new WeakSet();
   let host, shadow, panel, launcher, scroller, flashNode, infoButton;
   let draggedPaneId=null, statusTimer=null;
   let overlay, overlayMenu, viewToggle, menuControls, overlayPosition=null;
@@ -28,7 +30,8 @@
   let masterObserver=null,masterFrame=null,masterStyle=null,pinnedMaster=null,pendingOpener=null,masterSidebarHidden=false;
   let nativeMenuObserver=null,nativeMenuFrame=null,nativeMenuStyle=null;
   const nativeMenuMarks=new Map();
-  const ACTION_MENU='[role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [data-radix-menu-content], [aria-haspopup="menu"], [aria-haspopup="true"]';
+  let nativeModalOpen=false,nativePageRoute=null;
+  const ACTION_MENU='[role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [data-radix-menu-content], [aria-haspopup="menu"], [aria-haspopup="true"], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="option"], [aria-haspopup="dialog"], [aria-haspopup="listbox"], dialog';
   let originalMaxWidth = 1400; // outer pane cap, not the text/content cap
   let contentWidthDetected=false,contentLayoutTimer=null,contentLayoutObserver=null;
   let settingsInputs = null;
@@ -171,7 +174,7 @@
   }
 
   function pinMasterSidebar() {
-    if(!state.enabled){releaseMasterSidebar();return;}
+    if(!state.enabled||nativeModalOpen){releaseMasterSidebar();return;}
     if(!settings.sidebarVisible){
       masterSidebarHidden=true;
       if(!masterStyle){masterStyle=document.createElement('style');masterStyle.id='cgww-master-pin';document.documentElement.appendChild(masterStyle);}
@@ -233,15 +236,57 @@
     nativeMenuMarks.clear();
   }
 
+  function syncNativeModal() {
+    const open=Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], dialog[open]')).some(node=>{
+      if(node.hidden||node.closest('[hidden], [aria-hidden="true"], [data-state="closed"]')||!node.getClientRects().length)return false;
+      const css=getComputedStyle(node);return css.display!=='none'&&css.visibility!=='hidden';
+    });
+    if(open===nativeModalOpen)return;
+    nativeModalOpen=open;
+    // Yield our chrome, not the iframe documents. Keep native portals, backdrop,
+    // focus trap and nested dialogs together instead of guessing stacking roots.
+    if(open){host?.setAttribute('data-cgww-native-modal','');releaseMasterSidebar();}
+    else{host?.removeAttribute('data-cgww-native-modal');ensureMasterSidebar();}
+  }
+
+  function syncNativePageRoute() {
+    const href=location.href;
+    if(nativePageRoute===null){nativePageRoute=href;return;}
+    if(nativeModalOpen||href===nativePageRoute)return;
+    const previous=nativePageRoute;nativePageRoute=href;
+    // Only known identities are aliases. Mode-bearing home URLs must be shown.
+    const oldKey=Core.paneKey(previous),nextKey=Core.paneKey(href);
+    if(oldKey&&oldKey===nextKey)return;
+    const projectKey=value=>{
+      const route=Core.newChatUrl(value);if(!route)return null;
+      const match=route.match(/\/g\/(g-p-[0-9a-f]{32})(?:-[^/]*)?\/project$/i);
+      return match?match[1].toLowerCase():route;
+    };
+    if(projectKey(previous)&&projectKey(previous)===projectKey(href))return;
+    try{const a=new URL(previous),b=new URL(href);if(a.pathname===b.pathname&&a.search===b.search)return;}catch{return;}
+    if(!settings.interceptSidebar){setEnabled(false);return;}
+    // Native buttons (Settings, search results, project creation) can navigate
+    // without an anchor click. Reveal their destination instead of covering it.
+    const project=Core.newChatUrl(href);
+    if(project&&project!==Core.ORIGIN+'/'){
+      if(!addNewChat(project))setEnabled(false);return;
+    }
+    const chat=Core.paneUrl(href);
+    if(chat){if(!assignToActive(chat,'ChatGPT チャット'))setEnabled(false);return;}
+    setEnabled(false);
+  }
+
   function syncNativeMenus() {
     if(!state.enabled)return;
+    syncNativeModal();
+    syncNativePageRoute();if(!state.enabled)return;
     const desired=new Map();
     const mark=(node,attr)=>{if(!node)return;let attrs=desired.get(node);if(!attrs)desired.set(node,attrs=new Set());attrs.add(attr);};
     const layer=node=>{
       mark(node,'data-cgww-native-menu-layer');
       if(nativeMenuMarks.get(node)?.has('data-cgww-native-menu-position')||getComputedStyle(node).position==='static')mark(node,'data-cgww-native-menu-position');
     };
-    for(const menu of document.querySelectorAll('[role="menu"], [data-radix-menu-content]')) {
+    for(const menu of document.querySelectorAll('[role="menu"], [data-radix-menu-content], [role="listbox"]')) {
       if(menu.hidden||menu.getAttribute('data-state')==='closed'||!menu.getClientRects().length)continue;
       const css=getComputedStyle(menu);if(css.visibility==='hidden'||css.display==='none')continue;
       // Radix positions its portal wrapper, so elevate that stacking context too.
@@ -271,22 +316,24 @@
 
   function startNativeMenuWatch() {
     if(nativeMenuObserver||typeof MutationObserver!=='function')return;
+    nativePageRoute=location.href;
     nativeMenuStyle=document.createElement('style');nativeMenuStyle.id='cgww-native-menu-layers';
-    nativeMenuStyle.textContent='[data-cgww-native-menu-layer][data-cgww-native-menu-layer]{z-index:2147483647!important}[data-cgww-native-menu-position]{position:relative!important}[data-cgww-native-menu-overflow][data-cgww-native-menu-overflow]{overflow:visible!important}';
+    nativeMenuStyle.textContent='#cgww-host[data-cgww-native-modal]{display:none!important}[data-cgww-native-menu-layer][data-cgww-native-menu-layer]{z-index:2147483647!important}[data-cgww-native-menu-position]{position:relative!important}[data-cgww-native-menu-overflow][data-cgww-native-menu-overflow]{overflow:visible!important}';
     document.documentElement.appendChild(nativeMenuStyle);
     // Run in the mutation microtask: newly mounted submenus must be raised
     // before their first paint, not after a deferred animation frame.
     nativeMenuObserver=new MutationObserver(syncNativeMenus);
-    nativeMenuObserver.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','role','data-state','aria-expanded']});
-    window.addEventListener('resize',scheduleNativeMenus);document.addEventListener('transitionend',scheduleNativeMenus,true);
+    nativeMenuObserver.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','role','data-state','aria-expanded','aria-hidden','aria-modal','open']});
+    window.addEventListener('resize',scheduleNativeMenus);window.addEventListener('popstate',scheduleNativeMenus);window.addEventListener('hashchange',scheduleNativeMenus);document.addEventListener('transitionend',scheduleNativeMenus,true);
     syncNativeMenus();
   }
 
   function stopNativeMenuWatch() {
     nativeMenuObserver?.disconnect();nativeMenuObserver=null;
     if(nativeMenuFrame!==null){cancelAnimationFrame(nativeMenuFrame);nativeMenuFrame=null;}
-    window.removeEventListener('resize',scheduleNativeMenus);document.removeEventListener('transitionend',scheduleNativeMenus,true);
+    window.removeEventListener('resize',scheduleNativeMenus);window.removeEventListener('popstate',scheduleNativeMenus);window.removeEventListener('hashchange',scheduleNativeMenus);document.removeEventListener('transitionend',scheduleNativeMenus,true);
     clearNativeMenuMarks();nativeMenuStyle?.remove();nativeMenuStyle=null;
+    nativeModalOpen=false;nativePageRoute=null;host?.removeAttribute('data-cgww-native-modal');
   }
 
   function updateFallbackDock() {
@@ -331,6 +378,7 @@
   }
 
   function ensureMasterSidebar() {
+    if(nativeModalOpen){releaseMasterSidebar();return;}
     if(state.enabled&&!settings.sidebarVisible){pinMasterSidebar();updateGeometry();updateFallbackDock();return;}
     if(!state.enabled||!settings.keepMasterSidebar){releaseMasterSidebar();updateFallbackDock();return;}
     pinMasterSidebar();
@@ -477,7 +525,15 @@
         if(backups.length)pane.draftBackups=[...new Set(backups)];
         if(saved.visible){pane.visible=true;pane.folded=false;}
       }else state.panes.push(pane);
+    }
+    // Resolve every branch source before deciding which new panes can wait.
+    for(const {pane,existing} of plans){
+      if(!existing)deferRestoredPane(pane);
       renderPane(pane);
+    }
+    // A group can reference a source already present but absent from its own list.
+    for(const pane of state.panes){
+      if(deferredRestoredPanes.has(pane)&&state.panes.some(other=>other.branchSource===pane.id))renderPane(pane);
     }
     const selected=plans[Core.restoredActiveIndex(snapshot,incoming)]?.pane;
     if(selected)state.activeId=selected.id;
@@ -599,7 +655,7 @@
       .board::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:#879bb3;z-index:4;pointer-events:none}
       .scroller{flex:1;min-height:0;display:flex;gap:4px;padding:4px;overflow-x:auto;overflow-y:hidden;background:#dfe6ef;scroll-snap-type:x proximity}
       .pane{position:relative;flex:none;min-width:320px;display:flex;flex-direction:column;height:100%;border:1px solid #aebdcd;border-radius:8px;overflow:hidden;background:#fff;scroll-snap-align:start}
-      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:64px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
+      .tab-state{font-size:11px;color:#52657a;max-width:100px}.pane-restore{position:relative;flex:0 0 32px;align-self:stretch;width:100%;height:32px;min-width:0;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:pointer}.pane-restore:hover{background:#d5e3f0}.pane-restore:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}.pane-spine{position:absolute;left:0;top:0;bottom:0;width:8px;padding:0;border:0;background:#e5edf5;z-index:2;cursor:pointer}.pane-spine span{display:none}.pane-spine:focus-visible{outline:2px solid #347ed5;outline-offset:-2px}.pane:not(.folded){padding-left:8px}.pane.folded{min-width:32px;padding:0}.pane.folded .pane-head,.pane.folded .pane-main,.pane.folded .branch-notice,.pane.folded .resize{display:none}.pane.folded .pane-spine{top:64px;bottom:32px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}.pane.folded .pane-spine span{display:block;max-height:100%;padding:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;font:13px system-ui;color:#243b51}.pane.active{outline:2px solid #347ed5;outline-offset:-2px}.pane.dragging{opacity:.65}.pane.drop-before::before,.pane.drop-after::after{content:"";position:absolute;top:32px;bottom:0;width:4px;background:#1684ed;z-index:3;pointer-events:none}.pane.drop-before::before{left:0}.pane.drop-after::after{right:0}
       .pane-folded-grip{flex:0 0 32px;width:100%;height:32px;min-height:32px;padding:0;border:0;border-bottom:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#243b51;cursor:grab;font:16px system-ui}.pane-folded-grip:active{cursor:grabbing}.pane-folded-grip:hover{background:#d5e3f0}.pane-folded-grip:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-folded-close{position:absolute;bottom:0;left:0;z-index:3;width:100%;height:32px;padding:0;border:0;border-top:1px solid #aebdcd;border-radius:0;background:#e5edf5;color:#526579;cursor:pointer}.pane-folded-close:hover{background:#fbe4e4;color:#a52222}.pane-folded-close:focus-visible{outline:2px solid #347ed5;outline-offset:-3px}
       .pane-head{height:32px;min-height:32px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid #e0e6ed;background:#fff}
@@ -609,7 +665,7 @@
       .pane-close{width:24px;padding:0;font-size:20px;font-weight:400}.pane-close:hover{border-color:#e5c5c5;background:#fff0f0;color:#a33131}
       .pane-index{flex:none;font-size:10px;color:#497198;padding:2px}.pane-title{flex:1;min-width:45px;width:50px;height:24px;padding:2px 3px;border:1px solid transparent;border-radius:4px;font-size:12px;color:#243b51}.pane-title:focus{border-color:#8dabcb}
       .pane-status{font-size:10px;flex:none;color:#8192a3;cursor:help}.pane-status[data-state=loaded]{color:#3e8b6a}.pane-status[data-state=warning]{color:#b46825}
-      .pane-main{position:relative;flex:1;min-height:0;background:#fff}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{padding:24px 15px;line-height:1.8;color:#62748a;text-align:center}
+      .branch-notice{padding:8px 12px;background:#fff4d6;color:#654b12;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.branch-notice[hidden]{display:none}.pane-main{position:relative;flex:1;min-height:0;background:#fff}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{padding:24px 15px;line-height:1.8;color:#62748a;text-align:center}
       .resize{position:absolute;right:0;top:32px;bottom:0;width:5px;cursor:ew-resize;background:transparent;z-index:1}.resize:hover{background:#4c91df88}
       .hintbar{position:absolute;bottom:10px;left:10px;right:10px;z-index:4;padding:7px 10px;border:1px solid #c4d3e2;border-radius:7px;background:#f8fbffff;pointer-events:none;font-size:11px;color:#45617d}.flash.warning{color:#a94f29}
       .dock{position:fixed;inset:0 auto 0 0;width:276px;z-index:2147483645;overflow:auto;padding:12px;background:#fafcff;border-right:1px solid #c7d5e3;color:#243c54;font:12px system-ui}.dock h3{font-size:14px;margin:4px 0}.dock-note{font-size:11px;line-height:1.6;color:#748496}.dock-item{display:block;width:100%;border:0;border-radius:5px;background:transparent;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:9px 6px;margin:3px 0;color:#314b66}.dock-item:hover,.dock-item.selected{background:#e0edfc}.dock-control{width:100%;padding:7px;border:1px solid #a4bdd4;border-radius:5px;background:#f0f6fc;color:#35546e}.dock-empty{font-size:11px;color:#7b8c9b}
@@ -692,12 +748,32 @@
       const status=create('span','tab-state sr-only',`${!p.visible?'退避中':p.folded?'折りたたみ中':'表示中'}${p.id===state.activeId?'・選択中':''}${!state.enabled?'・分割表示休止中':''}`);
       const collapsed=!p.visible||p.folded;
       const restore=button(collapsed?'□':'−',`${p.title} を${collapsed?'復元':'折りたたむ'}`,()=>{if(collapsed){selectConversation(p);paneNodes.get(p.id)?.foldButton?.focus();}else setPaneFolded(p,true);},'tab-toggle');restore.setAttribute('aria-label',`${p.title} を${collapsed?'復元':'折りたたむ'}`);restore.setAttribute('aria-expanded',String(!collapsed));restore.disabled=!state.enabled;
-      row.append(name,status,restore);menuControls.parkedList.appendChild(row);
+      row.append(name,status,restore);appendDraftRecovery(row,p);menuControls.parkedList.appendChild(row);
     }
     if(!parked.length)menuControls.parkedList.appendChild(create('p','','タブはありません。'));
     if(menuControls.historyEntry)menuControls.historyEntry.textContent=`閉じた履歴 (${closedPanes.length})`;
     renderClosedHistory();
     placeOverlay();
+  }
+
+  function appendDraftRecovery(row,p){
+    const backups=(p.draftBackups||[]).filter(value=>typeof value==='string'&&value);
+    if(!backups.length)return;
+    const details=create('details','draft-recovery');details.style.gridColumn='1 / -1';details.style.minWidth='0';
+    details.appendChild(create('summary','',`退避テキスト (${backups.length}件)`));
+    details.appendChild(create('p','','送信済みの文面が含まれる場合があります。必要な文字だけコピーして手動で貼り付けてください。入力欄への挿入・送信は行いません。'));
+    const choice=create('select');choice.setAttribute('aria-label',`${p.title} の退避テキストを選択`);
+    backups.forEach((text,index)=>{const option=create('option','',`${index+1} (${text.length}文字)`);option.value=String(index);choice.appendChild(option);});choice.value='0';
+    const copyText=create('textarea');copyText.readOnly=true;copyText.rows=4;copyText.style.width='100%';copyText.style.boxSizing='border-box';copyText.setAttribute('aria-label',`${p.title} の退避テキスト（コピー用・読み取り専用）`);copyText.value=backups[0];
+    choice.addEventListener('change',()=>{copyText.value=backups[Number(choice.value)]||'';});
+    const status=create('p');status.setAttribute('role','status');
+    const copy=button('コピー','選択した退避テキストをコピー',async()=>{
+      const value=backups[Number(choice.value)];
+      if(!state.panes.includes(p)||!value||!(p.draftBackups||[]).includes(value)){status.textContent='列の状態が変わりました。メニューを開き直してください。';return;}
+      try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(value);status.textContent='コピーしました。会話の入力欄は変更していません。';}
+      catch{copyText.focus();copyText.select?.();status.textContent='コピー用の文字を選択しました。Ctrl+Cでコピーしてください。';}
+    });
+    details.append(choice,copyText,copy,status);row.appendChild(details);
   }
 
   function resetPaneWidths() {
@@ -728,7 +804,9 @@
   }
 
   function setPaneFolded(p,folded) {
-    p.folded=Boolean(folded);state.activeId=p.id;applyColumnWidths();markActive();safeSave();syncOverlay();
+    p.folded=Boolean(folded);
+    if(!p.folded&&deferredRestoredPanes.has(p))renderPane(p);
+    state.activeId=p.id;applyColumnWidths();markActive();safeSave();syncOverlay();
     const entry=paneNodes.get(p.id);
     (p.folded?entry?.restoreButton:entry?.foldButton)?.focus();
   }
@@ -752,7 +830,7 @@
       if(!doc||frame.contentWindow.location.origin!==Core.ORIGIN)return;
       if(frame._cgwwDraftDocument!==doc){
         frame._cgwwDraftRecovery?.dispose();frame._cgwwDraftDocument=doc;
-        frame._cgwwDraftRecovery=Drafts.connect(doc,frame._cgwwPane,()=>{safeSave();},text=>setStatus(text,true));
+        frame._cgwwDraftRecovery=Drafts.connect(doc,frame._cgwwPane,()=>{syncNewChatLocation(frame);safeSave();},text=>setStatus(text,true),()=>{const href=frame.contentWindow.location.href;return Core.paneKey(href)||(Core.newChatUrl(href)?'draft:'+Core.newChatUrl(href):undefined);});
       }
       frame._cgwwDraftRecovery.attempt();
     }catch{/* Cross-origin/login composers remain untouched. */}
@@ -953,8 +1031,20 @@
   function syncNewChatLocation(frame) {
     const p=frame._cgwwPane;
     if(p?.branchSource){checkBranchLocation(p);return;}
-    if(!p||(!p.newChat&&!Core.gptUrl(p.url)&&!Core.isProvisionalChat(p.url)))return;
-    try{const url=Core.paneUrl(frame.contentWindow.location.href);if(url&&url!==p.url){p.url=url;delete p.newChat;safeSave();}}catch{/* Same-origin only. */}
+    if(!p)return;
+    try{
+      const href=frame.contentWindow.location.href,fresh=Core.newChatUrl(href),url=Core.paneUrl(href)||fresh;if(!url||url===p.url)return;
+      const previous=Core.paneKey(p.url)||Core.newChatUrl(p.url),next=Core.paneKey(url)||fresh;
+      if(previous&&previous!==next){
+        if(frame._cgwwDraftRecovery?.navigation)frame._cgwwDraftRecovery.navigation();
+        else{
+          if(p.draft)p.draftBackups=[...new Set([...(p.draftBackups||[]),p.draft])];
+          delete p.draft;
+        }
+        if(Core.conversationKey(p.url)&&!Core.isProvisionalChat(p.url)){p.title='ChatGPT チャット';p.titleMode='native';}
+      }
+      p.url=url;if(fresh)p.newChat=true;else delete p.newChat;safeSave();
+    }catch{/* Same-origin only. */}
   }
 
   function newChatControl(event) {
@@ -964,6 +1054,8 @@
     if(!control||control.disabled||control.getAttribute?.('aria-disabled')==='true'||control.hasAttribute?.('download'))return null;
     const label=(control.getAttribute?.('aria-label')||control.getAttribute?.('title')||control.textContent||'').trim();
     const known=control.getAttribute?.('data-octane-navigation-item')==='new_chat'||['create-new-chat-button','new-chat-button'].includes(control.getAttribute?.('data-testid'));
+    // An explicit project page link opens that native page in its own pane.
+    if(control.tagName==='A'&&Core.newChatUrl(control.href)?.endsWith('/project'))return control;
     if(!known&&!/^(?:New chat|新しいチャット|新規チャット|.+ で新しいチャット|New chat in .+)$/i.test(label))return null;
     if(!newChatDestination(control))return null;
     return control;
@@ -1015,7 +1107,7 @@
     for(const p of state.panes){
       if(p.branchSource)continue;
       const frame=paneNodes.get(p.id)?.iframe;
-      try{const current=Core.paneUrl(frame?.contentWindow.location.href);if(current){p.url=current;delete p.newChat;}}catch{/* Same-origin only. */}
+      if(frame)syncNewChatLocation(frame);
       if(Core.paneKey(p.url)===key)return p;
     }
     return null;
@@ -1029,33 +1121,33 @@
 
   function addPane(rawUrl, title, forceNew = false) {
     const url = Core.paneUrl(rawUrl);
-    if (!url) { setStatus('ChatGPTの会話URL（/c/...）を指定してください。', true); return; }
+    if (!url) { setStatus('ChatGPTの会話URL（/c/...）を指定してください。', true); return false; }
     const exists = findConversation(url);
-    if (exists) { selectConversation(exists); return; }
+    if (exists) { selectConversation(exists); return true; }
     const active = state.panes.find(p => p.id === state.activeId);
     if (active && !active.url && !forceNew) {
       active.url = url;
       active.title = Core.normalizeTitle(title);active.titleMode='native';
       active.visible = true;
       renderPane(active); markActive(); applyColumnWidths(); safeSave();
-      return;
+      return true;
     }
-    if (state.panes.length >= 200) { setStatus('動作保護のため200列が上限です。', true); return; }
-    if (state.panes.filter(p => p.visible).length >= 8 && !confirm('さらに列を追加しますか？会話ごとにメモリを使用します。')) return;
+    if (state.panes.length >= 200) { setStatus('動作保護のため200列が上限です。', true); return false; }
+    if (state.panes.filter(p => p.visible).length >= 8 && !confirm('さらに列を追加しますか？会話ごとにメモリを使用します。')) return false;
     const p = { id: newId(), url, title: Core.normalizeTitle(title), titleMode:'native', width: settings.paneWidth, autoWidth:settings.nativePaneWidth, visible: true };
     state.panes.push(p);
     state.activeId = p.id;
     renderPane(p); markActive(); safeSave();
     applyColumnWidths(); updateFallbackDock();
-    scroller.scrollLeft = scroller.scrollWidth;
+    scroller.scrollLeft = scroller.scrollWidth;return true;
   }
 
   function assignToActive(url, title, forceNew = false) {
-    const existing=findConversation(url);if(existing){selectConversation(existing);return;}
+    const existing=findConversation(url);if(existing){selectConversation(existing);return true;}
     // Incoming conversations never replace a selected/left-hand document.
     const last=state.panes[state.panes.length-1];
-    if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.paneUrl(url);if(!last.url)return;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return;}
-    addPane(url,title,true);
+    if(last&&last.visible&&!last.url&&!forceNew){last.url=Core.paneUrl(url);if(!last.url)return false;last.title=Core.normalizeTitle(title);state.activeId=last.id;renderPane(last);markActive();safeSave();return true;}
+    return addPane(url,title,true);
   }
 
   function addFromPrompt() {
@@ -1091,7 +1183,9 @@
     // Popup menus in the compact navigation rail may extend beyond the
     // user-selected overlay boundary. DOM context takes precedence over X.
     if (anchor.closest(SIDE_NAV + ', nav, aside, [role=menu]')) return true;
-    return x <= (isInsideFrame ? 110 : settings.sidebarWidth);
+    // Coordinates (especially keyboard-generated clientX=0) are not evidence
+    // of navigation. Unknown native/content links must keep their own handlers.
+    return false;
   }
 
   function handleHistoryClick(event) {
@@ -1226,6 +1320,16 @@
   }
 
   const branchActions=new WeakMap();
+  function updateBranchNotice(p){
+    const notice=paneNodes.get(p.id)?.branchNotice;if(!notice)return;
+    notice.hidden=!p.branchSource;
+    if(!p.branchSource)return;
+    let same=null;
+    try{const key=Core.conversationKey(paneNodes.get(p.id)?.iframe?.contentWindow.location.href);if(key)same=key===Core.conversationKey(p.branchOrigin);}catch{}
+    notice.textContent=same===true?
+      '分岐未作成：元の会話と同じURLです。この列のメッセージの「…」→「会話を分岐する」→「新しいチャットに分岐」を選んでください。':
+      '分岐先URLを確認中です。新しい会話と元の会話の関係を確認できるまで、分岐完了として保存しません。';
+  }
   function liveBranchSourceUrl(source){
     const frame=paneNodes.get(source?.id)?.iframe;
     if(!frame)return null;
@@ -1245,14 +1349,14 @@
     const p={id:newId(),url:origin,branchSource:source.id,branchOrigin:origin,title:'分岐準備: '+source.title,titleMode:'local',width:source.width,autoWidth:source.autoWidth,visible:true};
     state.panes.splice(state.panes.indexOf(source)+1,0,p);
     renderPane(p);syncPaneOrder();selectConversation(p);safeSave();
-    setStatus('隣の準備列で、分岐したいメッセージの「…」から本体の分岐を選んでください。元列の未送信入力・添付はコピーしません。');
+    setStatus('まだ分岐は作成していません。隣の準備列で、分岐したいメッセージの「…」から本体の分岐を選んでください。元列の未送信入力・添付はコピーしません。');
     return p;
   }
   function handleBranchClick(event,p){
     if(event.button!==0||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
     const control=event.target?.closest?.('[role="menuitem"],button,a');
     const label=(control?.textContent||'').trim();
-    const branch=isNativeActionMenuEvent(event)&&Core.isBranchLabel(label);
+    const branch=control?.getAttribute?.('aria-haspopup')!=='menu'&&isNativeActionMenuEvent(event)&&Core.isBranchLabel(label);
     if(p.branchSource){
       branchActions.delete(p);
       if(branch){
@@ -1279,14 +1383,39 @@
     reorderPane(p.id,source.id,true);renderPane(p);selectConversation(p);safeSave();
     setStatus(Core.isProvisionalChat(url)?'分岐先を隣に表示しました。本体の仮URLのため、再読み込みや終了後の復元は保証できません。':'分岐先を元の列の隣に表示しました。');return true;
   }
+  // Native branch attribution is durable DOM evidence, unlike a short-lived click
+  // token. Scope it to the currently displayed conversation, never sidebar links.
+  function hasNativeBranchEvidence(doc,href,origin){
+    const key=Core.conversationKey(href),sourceKey=Core.conversationKey(origin);
+    if(!doc||!key||key===sourceKey||Core.conversationKey(doc.location?.href)!==key)return false;
+    const roots=Array.from(doc.querySelectorAll('[data-chatgpt-conversation-selection-target][data-thread-find-target="conversation"]'))
+      .filter(el=>Core.conversationKey(Core.ORIGIN+'/c/'+encodeURIComponent(el.getAttribute('data-chatgpt-conversation-selection-target')||''))===key);
+    if(roots.length!==1)return false;
+    const root=roots[0];
+    return Array.from(root.querySelectorAll('[data-talvt-turn-state="complete"] a[dir="auto"][data-discover="true"][href]')).some(link=>{
+      if(Core.conversationKey(link.href)!==sourceKey||link.closest('[data-chatgpt-conversation-selection-target]')!==root)return false;
+      const footer=link.parentElement;
+      if(!footer||footer.querySelectorAll('a[href]').length!==1)return false;
+      const continuation=Array.from(footer.childNodes).filter(node=>node.nodeType===3).map(node=>node.textContent).join('').trim();
+      if(continuation!=='からの続き')return false;
+      return Array.from(footer.querySelectorAll('svg use')).some(icon=>(icon.getAttribute('href')||'').split('#')[1]==='codex-icon-arrow-branch-light-16');
+    });
+  }
   function checkBranchLocation(p){
-    const action=branchActions.get(p);if(!action)return;
-    if(Date.now()>action.expires){branchActions.delete(p);return;}
+    if(!p.branchSource||!state.panes.includes(p))return;
+    updateBranchNotice(p);
+    const action=branchActions.get(p);
+    if(action&&Date.now()>action.expires)branchActions.delete(p);
     try{
-      const href=paneNodes.get(p.id)?.iframe?.contentWindow.location.href;
+      const frame=paneNodes.get(p.id)?.iframe,href=frame?.contentWindow.location.href;
       const key=Core.conversationKey(href);
       if(!key){branchActions.delete(p);return;}
-      if(key!==Core.conversationKey(p.branchOrigin)){branchActions.delete(p);finishBranch(p,href);}
+      if(key===Core.conversationKey(p.branchOrigin))return;
+      // A distinct URL or recent click alone cannot prove this is the branch.
+      // Always require native attribution to the exact original conversation.
+      if(hasNativeBranchEvidence(frame.contentDocument,href,p.branchOrigin)){
+        branchActions.delete(p);finishBranch(p,href);
+      }
     }catch{branchActions.delete(p);}
   }
   function importBranchUrl(p){
@@ -1304,14 +1433,37 @@
     setStatus('指定した会話を元列の隣に配置しました。準備列は必要に応じて×で閉じてください。');
   }
 
+  function canDeferRestoredPane(p) {
+    // Only saved server conversations without pending local work qualify.
+    // A prepared branch needs its source's live document for identity checks.
+    return p.folded===true&&!p.newChat&&!p.branchSource&&!p.branchOrigin&&
+      Core.conversationKey(p.url)?.startsWith('chat:')&&!Core.isProvisionalChat(p.url)&&
+      !p.draft&&!(p.draftBackups||[]).some(Boolean)&&
+      !state.panes.some(other=>other.branchSource===p.id)&&!paneNodes.get(p.id)?.iframe;
+  }
+
+  function deferRestoredPane(p) {
+    if(canDeferRestoredPane(p))deferredRestoredPanes.add(p);
+  }
+
+  function shouldBuildPaneFrame(p) {
+    if(!p.url||!p.visible||!state.enabled)return false;
+    if(deferredRestoredPanes.has(p)){
+      if(canDeferRestoredPane(p))return false;
+      deferredRestoredPanes.delete(p);
+    }
+    return true;
+  }
+
   function renderPane(p) {
     let entry = paneNodes.get(p.id);
     if (entry) {
-      if(entry.branchButton){entry.branchButton.textContent=p.branchSource?'分岐先URL':'分岐';entry.branchButton.title=p.branchSource?'本体で作成した分岐先URLを指定':'元の列を保持して隣で分岐を準備';}
+      updateBranchNotice(p);
+      if(entry.branchButton){entry.branchButton.textContent=p.branchSource?'分岐先URL':'分岐準備';entry.branchButton.title=p.branchSource?'本体で作成した分岐先URLを指定':'元の列を保持して隣で分岐を準備';}
       entry.root.hidden = !p.visible;
       entry.root.style.width = `${getPaneWidth(p)}px`;
-      if(!editingPaneTitle(entry))entry.title.value = p.title;
-      if (!entry.iframe && p.url && p.visible && state.enabled) {
+      if(!editingPaneTitle(entry)&&!titleRenames.has(Core.conversationKey(p.url)))entry.title.value = p.title;
+      if (!entry.iframe && shouldBuildPaneFrame(p)) {
         // Filling an empty pane is safe. Existing loaded frames are never replaced.
         entry.iframe = buildFrame(p, entry.main, entry.foot);
       }
@@ -1335,12 +1487,10 @@
     const index = create('span', 'pane-index', String(state.panes.indexOf(p) + 1));
     head.appendChild(index);
     const title = create('input', 'pane-title');
-    title.type = 'text'; title.maxLength = 100; title.value = p.title; title.title = '拡張内の表示名（空欄で会話名に同期）。ChatGPT本体の名前は変更しません'; title.setAttribute('aria-label', '列の表示名');
-    title.addEventListener('change', () => {
-      p.titleMode=title.value.trim()?'local':'native';
-      p.title=p.titleMode==='local'?Core.normalizeTitle(title.value):(nativeTitles.get(Core.conversationKey(p.url))||p.title);
-      title.value=p.title;applyColumnWidths();safeSave();syncOverlay();
-    });
+    title.type = 'text'; title.maxLength = 100; title.value = p.title;
+    title.title = 'ChatGPTの会話名を変更（保存済み会話のみ）。空欄で既存の表示名を解除して自動同期';
+    title.setAttribute('aria-label', 'ChatGPTの会話名');
+    title.addEventListener('change', () => { void renamePaneTitle(p,title); });
     title.addEventListener('blur',()=>syncNativeTitles());
     title.addEventListener('focus', () => { state.activeId = p.id; markActive(); });
     head.appendChild(title);
@@ -1349,14 +1499,15 @@
     const detachButton=button('↗','会話を新規ウィンドウで開く。元の列は折りたたんで保持',()=>detachPane(p),'pane-control pane-detach');detachButton.setAttribute('aria-label','新規ウィンドウ');head.appendChild(detachButton);
     const linkButton=button('リンク','このタブのURLをコピー',()=>copyPaneUrl(p),'pane-control pane-link');linkButton.setAttribute('aria-label','このタブのURLをコピー');head.appendChild(linkButton);
     const nativeButton=button('…','ChatGPTの会話メニューを開く',()=>openPaneNativeMenu(p),'pane-control pane-more');nativeButton.setAttribute('aria-label','ChatGPTの会話メニューを開く');head.appendChild(nativeButton);
-    const branchButton=button(p.branchSource?'分岐先URL':'分岐',p.branchSource?'分岐先URLを指定して隣に追加':'元の列を保持して隣で分岐を準備',()=>p.branchSource?importBranchUrl(p):prepareBranch(p),'pane-control pane-branch');head.appendChild(branchButton);
+    const branchButton=button(p.branchSource?'分岐先URL':'分岐準備',p.branchSource?'分岐先URLを指定して隣に追加':'元の列を保持して隣で分岐を準備',()=>p.branchSource?importBranchUrl(p):prepareBranch(p),'pane-control pane-branch');head.appendChild(branchButton);
     const foldButton=button('_','この列を折りたたむ（ページと入力を保持）',()=>setPaneFolded(p,true),'pane-control pane-fold');foldButton.setAttribute('aria-label','この列を折りたたむ');head.appendChild(foldButton);
     const wideButton=button('↔','レビュー・分割画面用にこの列だけ広げる',()=>toggleSplitWidth(p),'pane-control');wideButton.setAttribute('aria-label','この列を広げる');wideButton.setAttribute('aria-pressed','false');head.appendChild(wideButton);
     const closeButton=button('×','この列を閉じてページを破棄',()=>closePane(p),'pane-control pane-close');closeButton.setAttribute('aria-label','この列を閉じる');head.appendChild(closeButton);
     root.appendChild(head);
+    const branchNotice=create('div','branch-notice');branchNotice.setAttribute('role','status');root.appendChild(branchNotice);
     const main = create('div', 'pane-main');
     let iframe;
-    if (p.url && state.enabled && p.visible) iframe = buildFrame(p, main, foot);
+    if (shouldBuildPaneFrame(p)) iframe = buildFrame(p, main, foot);
     else if (p.url) main.appendChild(create('div', 'empty', '列を表示すると、このチャットを読み込みます。'));
     else main.appendChild(create('div', 'empty', '左の履歴からチャットをクリックしてください。\n\n会話は常に右端へ追加します。'));
     root.appendChild(main);
@@ -1390,8 +1541,54 @@
       state.activeId = p.id; markActive();
     });
     scroller.appendChild(root);
-    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, foldedGrip, wideButton, branchButton });
+    paneNodes.set(p.id, { root, iframe, title, main, foot, index, grip, spine, foldButton, restoreButton, foldedCloseButton, foldedGrip, wideButton, branchButton, branchNotice });
+    updateBranchNotice(p);
     attachPaneDrag(root,[grip,foldedGrip],p);syncPaneOrder();applyColumnWidths();
+  }
+
+  // A request owns its exact live iframe/document. It never navigates a pane or
+  // silently turns a failed server rename into a persistent local display alias.
+  const titleRenames=new Map();
+  async function renamePaneTitle(p,title){
+    const key=Core.conversationKey(p.url),entry=paneNodes.get(p.id);
+    if(titleRenames.has(key)){title.value=p.title;setStatus('この会話の名前を変更中です。完了をお待ちください。',true);return;}
+    const requested=title.value.trim();
+    if(!requested){
+      p.titleMode='native';p.title=nativeTitles.get(key)||p.title;title.value=p.title;
+      applyColumnWidths();safeSave();syncOverlay();return;
+    }
+    if(requested===p.title&&p.titleMode==='native')return;
+    const frame=entry?.iframe;
+    let doc;
+    try{doc=frame?.contentDocument;}catch{/* Origin checks below fail closed. */}
+    const valid=()=>{try{return state.enabled&&state.panes.includes(p)&&paneNodes.get(p.id)===entry&&
+      entry.iframe===frame&&frame?.isConnected&&p.visible&&!p.folded&&
+      Core.conversationKey(p.url)===key&&frame.contentDocument===doc&&
+      window.CGWWTitleRename?.savedKey(frame.contentWindow.location.href)===key;
+    }catch{return false;}};
+    if(!window.CGWWTitleRename?.savedKey(p.url)||p.branchSource||!doc||!valid()){
+      title.value=p.title;setStatus('このタブでは会話名を変更できません。保存済みの通常会話・プロジェクト会話を開くか、ChatGPT本体の名前変更を使ってください。表示名は変更していません。',true);return;
+    }
+    const token={};titleRenames.set(key,token);title.readOnly=true;title.setAttribute('aria-busy','true');
+    setStatus('ChatGPTの会話名を変更しています…');
+    try{
+      nativeTitles.observe(doc,readNativeTitles(doc,key));
+      await window.CGWWTitleRename.rename({doc,key,title:Core.normalizeTitle(requested),valid,
+        readTitle:()=>readNativeTitles(doc,key).get(key)});
+      if(!valid())throw Object.assign(Error('context'),{submitted:true});
+      nativeTitles.observe(doc,readNativeTitles(doc,key));
+      nativeTitles.confirm(key,Core.normalizeTitle(requested));
+      p.title=Core.normalizeTitle(requested);p.titleMode='native';
+      setStatus('ChatGPT画面で新しい会話名を確認しました。');
+    }catch(error){
+      setStatus(error?.submitted?
+        '名前変更の保存結果を確認できませんでした。自動再試行はしません。ChatGPT本体で会話名を確認してください。':
+        '名前変更を完了できませんでした。ChatGPT本体の会話メニューで変更してください。表示名は変更していません。',true);
+    }finally{
+      if(titleRenames.get(key)===token)titleRenames.delete(key);
+      title.readOnly=false;title.removeAttribute('aria-busy');title.value=p.title;
+      syncNativeTitles();applyColumnWidths();safeSave();syncOverlay();
+    }
   }
 
   function paneSourceUrl(p) {
@@ -1479,6 +1676,7 @@
     nativeTitles.observe(document,readNativeTitles(document),true);
     for(const p of state.panes){
       const frame=paneNodes.get(p.id)?.iframe;
+      if(frame)syncNewChatLocation(frame);
       try{
         const doc=frame?.contentDocument,key=Core.conversationKey(p.url);
         if(doc&&key&&Core.conversationKey(doc.location.href)===key)nativeTitles.observe(doc,readNativeTitles(doc,key));
@@ -1487,8 +1685,8 @@
     let changed=false;
     for(const p of state.panes){
       const entry=paneNodes.get(p.id);
-      if(Core.applyNativeTitle(p,nativeTitles.get(Core.conversationKey(p.url)),editingPaneTitle(entry)))changed=true;
-      if(entry?.title&&!editingPaneTitle(entry))entry.title.value=p.title;
+      if(Core.applyNativeTitle(p,nativeTitles.get(Core.conversationKey(p.url)),editingPaneTitle(entry)||titleRenames.has(Core.conversationKey(p.url))))changed=true;
+      if(entry?.title&&!editingPaneTitle(entry)&&!titleRenames.has(Core.conversationKey(p.url)))entry.title.value=p.title;
       if(entry?.iframe)entry.iframe.title=`ChatGPT: ${p.title}`;
     }
     if(changed){applyColumnWidths();syncOverlay();updateFallbackDock();safeSave();}
@@ -1520,6 +1718,7 @@
         closedPanes = Core.normalizeSessionPanes(stored?.closedPanes).filter(p=>p.url).map(p=>({...p,id:newId()}));
         state.enabled = stored?.enabled === true;
         state.panes = Core.restoreWorkspacePanes(stored?.panes,newId);
+        state.panes.forEach(deferRestoredPane);
         state.activeId = state.panes[Core.restoredActiveIndex(stored,state.panes)]?.id || null;
         if(Number.isFinite(stored?.overlayPosition?.x)&&Number.isFinite(stored?.overlayPosition?.y))overlayPosition={x:stored.overlayPosition.x,y:stored.overlayPosition.y};
       }

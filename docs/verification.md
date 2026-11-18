@@ -1,3 +1,27 @@
+## v1.0.18 native UI compatibility
+
+See [the operation-by-operation audit](native-operations-audit.md). Candidate Node regressions and the local Chrome modal fixture pass. Existing-runtime ChatGPT checks confirmed the modal/page occlusion bugs. Candidate files were staged in the installed extension directory, but the runtime was not activated. A new disposable ChatGPT tab still loaded the old runtime, without the candidate modal-yield stylesheet signature; only that test tab was closed. The protected workspace was not touched, and no extension/global reload or service data changes were performed. Candidate service E2E remains blocked until safe activation, and publication is on hold pending that live testing. Automated tests and the local browser fixture do not establish service-side creation/save success. Do not reload a workspace holding unsaved provisional branches merely to test this candidate.
+
+## v1.0.16 分岐URL確認（2026-11-13）
+
+自動確定の対応範囲は、確認済みの日本語UIに限ります。現在の会話内にある分岐アイコン、元会話へのリンク、文字列「からの続き」を照合します。英語の「Branch in new chat」を認識しても、他言語や本体DOMの変更でこの証拠を確認できなければ自動確定しません。その場合は、本体で作成した分岐先のURLを「分岐先URL」から手動で取り込んでください。仮URLを別の列へ新規に読み込むことはできないため、保存済みURLになってから取り込むか、すでに表示中の同じ仮URLの列を再利用してください。
+
+既存画面の読み取りで、iframe.src は元会話でも contentWindow.location.href は異なる local-chatgpt 仮ID、ChatGPT本体には元会話リンクと「からの続き」がある一方、拡張表示が分岐準備のままという状態を確認。既存ランタイムの正確な版は未確認。実会話を新たに分岐・送信・再読み込みしていない。
+
+`npm run verify` は311テスト合格、構文・manifest整合性も合格。PythonによるZIP生成・ソース一致確認も合格。
+
+合成テスト: 期限切れ/未捕捉クリックからのネイティブ分岐元証拠による採用、異なる会話IDの必須化、別の元リンク・別コンテナ・曖昧なルート・汎用リンク・偽アイコンの拒否、元会話変更/削除時の拒否、iframe/src/document/入力/添付維持、保存URL更新、仮→保存済みURLの定期追従、未作成の常時表示、本体サブメニュー通過を確認。
+
+実ブラウザーでの候補版E2Eと仮URLの再起動後復元は未検証。仮URL画面を再読み込みして更新を適用しないこと。
+
+# v1.0.15 会話名変更の検証範囲（2026-11-12）
+
+`npm run verify`: 303/303件PASS、manifest参照・バージョン一致・JavaScript構文検査PASS。`python scripts/package.py` と `python scripts/package.py --check`: PASS。
+
+通常会話とプロジェクト会話の日本語UIで、現在の会話タイトルのヘッダーボタン、関連付けられたメニュー、「名前を変更」、新規ダイアログの見出し・タイトル入力欄・保存ボタンを読み取り確認しました。どちらもキャンセルし、実際の会話名の編集・保存や既存タブの再読み込みはしていません。
+
+Node試験は合成DOMで対象URL、会話ID、メニューとダイアログの所有関係、保存応答の確認、タイムアウト、割り込み、並行操作、旧表示名、iframe保持を検証します。サービス側永続化、実React入力イベント、インストール済み拡張からの一連の保存、英語UIでの実機動作は未検証です。履歴名の一致は画面上の確認であり、サーバーへの永続化の保証ではありません。
+
 # v0.8.1 検証（2026-11-01）
 
 146 Node tests PASS（旧版134 + 新規12）。構文/manifest/バージョン、ZIP生成・整合性を検査。

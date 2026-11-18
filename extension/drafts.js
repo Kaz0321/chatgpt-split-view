@@ -43,11 +43,32 @@
     finally{if(previous&&previous!==el)previous.focus?.();}
     return ok;
   }
-  function connect(doc,pane,save,report=()=>{}){
-    let done=false,conflict=false,restoring=false,current=null;
+  function connect(doc,pane,save,report=()=>{},getRouteKey=()=>null){
+    let done=false,conflict=false,restoring=false,current=null,ignored=null,routeKey=getRouteKey();
+    const navigation=()=>{
+      const next=getRouteKey();if(next===routeKey)return;
+      routeKey=next;
+      // Cached text must never be injected into a different route's composer.
+      // Ignore the old composer until it is replaced or the user edits it.
+      if(pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
+      delete pane.draft;ignored=composer(doc);current=ignored;done=true;conflict=false;
+    };
     const attempt=()=>{
-      const el=composer(doc);if(!el)return;
-      if(current!==el){current=el;done=false;conflict=false;}
+      navigation();
+      const el=composer(doc);if(routeKey===undefined||!el||el===ignored)return;
+      ignored=null;
+      if(current!==el){
+        if(current&&done){
+          // A mounted editor being replaced is not a document restore. The host
+          // may have submitted/cleared it without an input event. Never replay
+          // cached text into the replacement or infer successful submission.
+          const value=text(el),uncertain=[pane.draft,text(current)]
+            .filter(valueBefore=>typeof valueBefore==='string'&&valueBefore&&valueBefore!==value);
+          if(uncertain.length)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),...uncertain])];
+          current=el;conflict=false;pane.draft=value;save();return;
+        }
+        current=el;done=false;conflict=false;
+      }
       if(done)return;
       if(!pane.draft){done=true;return;}
       if(text(el)){
@@ -57,27 +78,28 @@
         return;
       }
       restoring=true;
-      try{done=restore(el,pane.draft);if(!done){done=true;conflict=true;report('この入力欄へ自動復元できません。保存した下書きは設定メニューで確認できます。');}}
-      catch{done=true;conflict=true;report('下書きの自動復元に失敗しました。保存した下書きは設定メニューで確認できます。');}
+      try{done=restore(el,pane.draft);if(!done){done=true;conflict=true;report('この入力欄へ自動復元できません。保存した下書きはタブ一覧の「退避テキスト」から取り出せます。');}}
+      catch{done=true;conflict=true;report('下書きの自動復元に失敗しました。保存した下書きはタブ一覧の「退避テキスト」から取り出せます。');}
       finally{restoring=false;}
       if(conflict){pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft].filter(Boolean))];pane.draft=text(el);save();}
     };
     const capture=()=>{
       attempt();
       const el=composer(doc);
-      if(!el||restoring||!done)return;
+      if(routeKey===undefined||!el||el===ignored||restoring||!done)return;
       if(conflict&&pane.draft&&text(el)!==pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
       pane.draft=text(el);save();
     };
     const input=event=>{
-      const el=composer(doc);if(!el||restoring||!(event.target===el||el.contains?.(event.target)))return;
+      navigation();
+      const el=composer(doc);if(routeKey===undefined||!el||restoring||!(event.target===el||el.contains?.(event.target)))return;
       if(conflict&&pane.draft&&text(el)!==pane.draft)pane.draftBackups=[...new Set([...(pane.draftBackups||[]),pane.draft])];
-      current=el;done=true;conflict=false;pane.draft=text(el);save();
+      ignored=null;current=el;done=true;conflict=false;pane.draft=text(el);save();
     };
     doc.addEventListener('input',input,true);
     const win=doc.defaultView;win.addEventListener('pagehide',capture);
     attempt();
-    return {attempt,capture,dispose(){doc.removeEventListener('input',input,true);win.removeEventListener('pagehide',capture);}};
+    return {attempt,capture,navigation,dispose(){doc.removeEventListener('input',input,true);win.removeEventListener('pagehide',capture);}};
   }
   const api={composer,text,restore,connect};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CGWWDrafts=api;

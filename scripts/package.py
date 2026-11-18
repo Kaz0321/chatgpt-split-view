@@ -10,14 +10,14 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / 'extension'
 RUNTIME_FILES = (
-    'manifest.json', 'background.js', 'windows.js', 'detached.js', 'persistence.js', 'core.js', 'content-layout.js', 'drafts.js', 'workspace.js',
+    'manifest.json', 'background.js', 'windows.js', 'detached.js', 'persistence.js', 'core.js', 'content-layout.js', 'drafts.js', 'title-rename.js', 'workspace.js',
     'options.html', 'options.css', 'options.js',
     'popup.html', 'popup.css', 'popup.js',
 )
 REPO_FILES = (
     'README.md', 'LICENSE', 'SECURITY.md',
     'docs/privacy.md', 'docs/changelog.md',
-    'docs/verification.md', 'docs/development.md',
+    'docs/verification.md', 'docs/development.md', 'docs/native-operations-audit.md', 'docs/draft-replay-investigation.md',
     'docs/readme-history.md', 'docs/verification-tab-groups.md',
     'docs/candidate-install.md', 'docs/sidebar-restore-fix.md', 'docs/split-panel-width.md', 'docs/release-1.0.0.md', 'docs/readme-v0101.md',
 )
